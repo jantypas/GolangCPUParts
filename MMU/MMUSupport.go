@@ -97,6 +97,7 @@ func NewMMU(cnf MMUConfig) *MMU {
 		freeDiskSlots[i] = i
 	}
 
+	// We've built the MMU
 	return &MMU{
 		PageTable:     make([]PageTableEntry, numVirtualPages),
 		TLB:           tlb,
@@ -109,18 +110,23 @@ func NewMMU(cnf MMUConfig) *MMU {
 
 // findInTLB checks if a virtual page exists in the TLB
 func (mmu *MMU) findInTLB(virtualPage int) (int, bool) {
+	// Look through the TLB for a page match
 	for _, entry := range mmu.TLB {
 		if entry.Valid && entry.VirtualPage == virtualPage {
+			// Mark this page as used
 			mmu.TLBHitCount++
 			return entry.PhysicalPage, true
 		}
 	}
+	// We didn't find a page
 	mmu.TLBMissCount++
 	return 0, false
 }
 
-// updateTLB updates the TLB with a new virtual-to-physical page mapping
+// updateTLB
+// Updates the TLB with a new virtual-to-physical page mapping
 func (mmu *MMU) updateTLB(virtualPage, physicalPage int) {
+	// For each entry in the TLB
 	for i := range mmu.TLB {
 		if !mmu.TLB[i].Valid {
 			mmu.TLB[i] = TLBEntry{
