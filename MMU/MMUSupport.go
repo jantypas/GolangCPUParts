@@ -5,14 +5,18 @@ import (
 	"fmt"
 )
 
+// MMUConfig
+// The MMUConfig defines the parameters for our MMU
 type MMUConfig struct {
-	VirtualMemoryPages  int
-	PhysicalMemoryPages int
-	TLBSize             int
-	MaxDiskPages        int
-	MinEvictPages       int
+	VirtualMemoryPages  int // Number of virtual memory pages we'll support
+	PhysicalMemoryPages int // Number of physical pages we'll support
+	TLBSize             int // How large is our TLB in pages
+	MaxDiskPages        int // How many disk spaces do we support (should equal VirtualMemoryPages or more)
+	MinEvictPages       int // The minimal page swap out
 }
 
+// NewMMUConfig
+// initializes and returns a default configuration for an MMU with predefined page and TLB settings.
 func NewMMUConfig() *MMUConfig {
 	return &MMUConfig{
 		VirtualMemoryPages:  1024 * 1024,
@@ -23,6 +27,7 @@ func NewMMUConfig() *MMUConfig {
 }
 
 // Protection flags
+// The bits that define the protection for a memory page
 const (
 	Read     = 1 << 0 // Read permission
 	Write    = 1 << 1 // Write permission
@@ -31,7 +36,8 @@ const (
 	PageSize = 4096
 )
 
-// PageTableEntry represents a single entry in the page table
+// PageTableEntry
+// The PageTableEntry represents a single entry in the virtual page table
 type PageTableEntry struct {
 	Present      bool // Indicates if the page is in physical memory
 	PhysicalPage int  // Physical page index (if in memory)
@@ -41,12 +47,14 @@ type PageTableEntry struct {
 }
 
 // TLBEntry represents a single TLB entry
+// The TLB is used as a cache to avoid digging into the page table
 type TLBEntry struct {
 	VirtualPage  int  // Virtual page index
 	PhysicalPage int  // Physical page index
 	Valid        bool // Indicates if the entry is valid
 }
 
+// MMU
 // MMU represents a Memory Management Unit with TLB and disk swapping support
 type MMU struct {
 	PageTable      []PageTableEntry // Page table
@@ -62,7 +70,8 @@ type MMU struct {
 	CurrentMode    int              // Current privilege mode (UserMode or SystemMode)
 }
 
-// NewMMU initializes a new MMU instance with disk support
+// NewMMU
+// Initializes a new MMU instance with disk support
 func NewMMU(cnf MMUConfig) *MMU {
 	numVirtualPages := cnf.VirtualMemoryPages
 	numPhysicalPages := cnf.PhysicalMemoryPages
