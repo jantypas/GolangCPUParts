@@ -11,28 +11,39 @@ type MMUConfig struct {
 	VirtualMemoryPages  int // Number of virtual memory pages we'll support
 	PhysicalMemoryPages int // Number of physical pages we'll support
 	TLBSize             int // How large is our TLB in pages
-	MaxDiskPages        int // How many disk spaces do we support (should equal VirtualMemoryPages or more)
 	MinEvictPages       int // The minimal page swap out
+	SwapIO              SwapperInterface
 }
 
 // NewMMUConfig
 // initializes and returns a default configuration for an MMU with predefined page and TLB settings.
 func NewMMUConfig() *MMUConfig {
+	swapper := SwapperInterface{Filename: "swap.bin"}
 	return &MMUConfig{
 		VirtualMemoryPages:  1024 * 1024,
 		PhysicalMemoryPages: 16384,
 		TLBSize:             256,
-		MaxDiskPages:        1024 * 1024,
+		MinEvictPages:       1024,
+		SwapIO:              swapper,
 	}
 }
 
 // Protection flags
 // The bits that define the protection for a memory page
 const (
-	Read     = 1 << 0 // Read permission
-	Write    = 1 << 1 // Write permission
-	Exec     = 1 << 2 // Execute permission
-	System   = 1 << 3 // System privilege on the page
+	OwnerRead   = 1 << 0 // Read permission
+	OwnerWrite  = 1 << 1 // Write permission
+	OwnerExec   = 1 << 2 // Execute permission
+	OwnerSystem = 1 << 3 // System privilege on the page
+	GroupRead   = 1 << 4
+	GroupWrite  = 1 << 5
+	GroupExec   = 1 << 6
+	GroupSystem = 1 << 7
+	WorldRead   = 1 << 8
+	WorldWrite  = 1 << 9
+	WorldExec   = 1 << 10
+	WorldSystem = 1 << 11
+
 	PageSize = 4096
 )
 
@@ -40,10 +51,13 @@ const (
 // The PageTableEntry represents a single entry in the virtual page table
 type PageTableEntry struct {
 	Present      bool // Indicates if the page is in physical memory
-	PhysicalPage int  // Physical page index (if in memory)
 	OnDisk       bool // Indicates if the page resides on the disk
+	Dirty        bool // Page should be written to disk
 	DiskPage     int  // Page index on the simulated disk (if on disk)
 	Protection   int  // Page protection flags (read/write/execute)
+	PhysicalPage int  // Physical page index (if in memory)
+	ProcessID    int
+	GroupID      int
 }
 
 // TLBEntry represents a single TLB entry
@@ -67,7 +81,8 @@ type MMU struct {
 	TLBMissCount   int              // Count of TLB misses
 	PageFaultCount int              // Count of page faults
 	SwapCount      int              // Count of pages swapped to/from memory
-	CurrentMode    int              // Current privilege mode (UserMode or SystemMode)
+	MinEvictPages  int
+	Swapper        SwapperInterface
 }
 
 // NewMMU
@@ -85,26 +100,14 @@ func NewMMU(cnf MMUConfig) *MMU {
 	// Initialize TLB
 	tlb := make([]TLBEntry, cnf.TLBSize)
 
-	// Initialize disk for swapped pages
-	disk := make([][]byte, cnf.MaxDiskPages)
-	for i := range disk {
-		disk[i] = make([]byte, PageSize)
-	}
-
-	// Initialize free disk slots
-	freeDiskSlots := make([]int, cnf.MaxDiskPages)
-	for i := range freeDiskSlots {
-		freeDiskSlots[i] = i
-	}
-
 	// We've built the MMU
 	return &MMU{
 		PageTable:     make([]PageTableEntry, numVirtualPages),
 		TLB:           tlb,
 		PhysicalMem:   make([]byte, cnf.PhysicalMemoryPages*PageSize),
-		Disk:          disk,
 		FreePages:     freePages,
-		FreeDiskSlots: freeDiskSlots,
+		Swapper:       cnf.SwapIO,
+		MinEvictPages: cnf.MinEvictPages,
 	}
 }
 
@@ -145,34 +148,37 @@ func (mmu *MMU) updateTLB(virtualPage, physicalPage int) {
 	})
 }
 
-// evictPage handles evicting a page from memory to disk
 func (mmu *MMU) evictPage() (int, error) {
-	if len(mmu.FreeDiskSlots) == 0 {
-		return 0, errors.New("no free disk slots available for swapping")
+	for i := 0; i < mmu.MinEvictPages; i++ {
+		if _, err := mmu.evictSinglePage(); err != nil {
+			return 0, err
+		}
 	}
+	return 0, nil
+}
 
+// evictPage handles evicting a page from memory to disk
+func (mmu *MMU) evictSinglePage() (int, error) {
 	// Evict the first in-memory page (simple FIFO eviction)
-	evictedPage := -1
 	for i, entry := range mmu.PageTable {
 		if entry.Present {
-			evictedPage = i
-			diskSlot := mmu.FreeDiskSlots[len(mmu.FreeDiskSlots)-1]
-			mmu.FreeDiskSlots = mmu.FreeDiskSlots[:len(mmu.FreeDiskSlots)-1]
-
 			// Copy physical memory to disk
 			physicalPage := entry.PhysicalPage
-			copy(mmu.Disk[diskSlot], mmu.PhysicalMem[physicalPage*PageSize:(physicalPage+1)*PageSize])
-
+			err := mmu.Swapper.SwapOut(
+				int64(physicalPage*PageSize),
+				mmu.PhysicalMem[physicalPage*PageSize:(physicalPage+1)*PageSize])
+			if err != nil {
+				return 0, err
+			}
 			// Mark the page as swapped out
 			entry.Present = false
 			entry.OnDisk = true
-			entry.DiskPage = diskSlot
 			mmu.FreePages = append(mmu.FreePages, physicalPage)
 
 			mmu.PageTable[i] = entry
 			fmt.Printf("Page swapped out: Virtual page %d to disk page %d\n", evictedPage, diskSlot)
 			mmu.SwapCount++
-			return evictedPage, nil
+			return 0, nil
 		}
 	}
 	return 0, errors.New("no pages available for eviction")
@@ -194,8 +200,9 @@ func (mmu *MMU) handlePageFault(virtualPage int) error {
 	entry := &mmu.PageTable[virtualPage]
 	// If the page was on disk, load it back into memory
 	if entry.OnDisk {
-		diskPage := entry.DiskPage
-		copy(mmu.PhysicalMem[physicalPage*PageSize:(physicalPage+1)*PageSize], mmu.Disk[diskPage])
+		tmpBuffer := make([]byte, PageSize)
+		err := mmu.Swapper.SwapIn(int64(physicalPage*PageSize), tmpBuffer)
+		copy(mmu.PhysicalMem[physicalPage*PageSize:physicalPage*PageSize+PageSize], tmpBuffer)
 		entry.OnDisk = false
 		entry.DiskPage = -1
 		mmu.FreeDiskSlots = append(mmu.FreeDiskSlots, diskPage)
