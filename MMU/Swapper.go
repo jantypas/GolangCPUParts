@@ -17,6 +17,7 @@ func (s *SwapperInterface) Initialize() error {
 	}
 	return nil
 }
+
 func (s *SwapperInterface) Terminate() error {
 	err := s.FileHandle.Close()
 	if err != nil {
@@ -28,24 +29,27 @@ func (s *SwapperInterface) Terminate() error {
 	}
 	return nil
 }
-func (s *SwapperInterface) SwapOut(pos int64, buffer []byte) error {
-	_, err := s.FileHandle.Seek(pos, 0)
+
+func (s *SwapperInterface) SwapOut(page int, buffer []byte) error {
+	_, err := s.FileHandle.Seek(int64(page*PageSize), 0)
 	if err != nil {
 		return err
 	}
-	_, err = s.FileHandle.Write(buffer)
+	_, err = s.FileHandle.Write(buffer[:PageSize])
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (s *SwapperInterface) SwapIn(pos int64, buffer []byte) error {
-	_, err := s.FileHandle.Seek(pos, 0)
+
+func (s *SwapperInterface) SwapIn(page int, buffer []byte) error {
+	_, err := s.FileHandle.Seek(int64(page*PageSize), 0)
 	if err != nil {
 		return err
 	}
-	_, err = s.FileHandle.Read(buffer)
+	_, err = s.FileHandle.Read(buffer[:PageSize])
 	if err != nil {
+		return err
 	}
 	return nil
 }
