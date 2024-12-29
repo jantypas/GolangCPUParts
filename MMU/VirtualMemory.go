@@ -1,6 +1,8 @@
 package MMU
 
-import "errors"
+import (
+	"errors"
+)
 
 func (mmu *MMUStruct) PageIsOnDisk(page int) bool {
 	return mmu.VirtualMemory[page].Flags&PageIsOnDisk == PageIsOnDisk
@@ -20,6 +22,45 @@ func (mmu *MMUStruct) SetPageIsActive(page int) {
 func (mmu *MMUStruct) ClearPageIsActive(page int) {
 	mmu.VirtualMemory[page].Flags &= ^PageIsActive
 }
+func (mmu *MMUStruct) PageIsDirty(page int) bool {
+	return mmu.VirtualMemory[page].Flags&PageIsDirty == PageIsDirty
+}
+func (mmu *MMUStruct) SetPageIsDirty(page int) {
+	mmu.VirtualMemory[page].Flags |= PageIsDirty
+}
+func (mmu *MMUStruct) ClearPageIsDirty(page int) {
+	mmu.VirtualMemory[page].Flags &= ^PageIsOnDisk
+}
+func (mmu *MMUStruct) pruneLRUCache(value int) {
+	// Create a new slice to store the result
+	result := make([]int, 0, 64)
+
+	for _, v := range mmu.LRUCache {
+		if v != value {
+			result = append(result, v) // Add only items not equal to the value
+		}
+	}
+	mmu.LRUCache = make([]int, 0, 64)
+	mmu.LRUCache = append(mmu.LRUCache, value)
+	mmu.LRUCache = append(mmu.LRUCache, result...)
+}
+
+func (mmu *MMUStruct) CheckPermissionsOk(mode int, mask int, prot int) bool {
+	finalMask := 0
+
+	switch mask {
+	case PageProtectionMaskUser:
+		finalMask = prot & PageProtectionMaskUser
+		break
+	case PageProtectionMaskGroup:
+		finalMask = (prot & PageProtectionMaskGroup) >> 4
+		break
+	case PageProtectionMaskWorld:
+		finalMask = (prot & PageProtectionMaskWorld) >> 8
+		break
+	}
+	return mode&finalMask == mode
+}
 
 // MakeVirtualMemroyTable - Create the virtual emmroy table
 // Build the virtual memory table strcutures.  Returns an error
@@ -30,7 +71,7 @@ func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
 	for i := 0; i < mmu.MMUConfig.NumVirtualPages; i++ {
 		mmu.FreeVirtualPages = append(mmu.FreeVirtualPages, i)
 	}
-	mmu.LRUCache = make([]int, mmu.MMUConfig.NumVirtualPages)
+	mmu.LRUCache = make([]int, 64)
 	return nil
 }
 
@@ -138,7 +179,7 @@ func (mmu *MMUStruct) SwapInPhysicalPage(page int) error {
 	// Set up the physical page
 	mmu.VirtualMemory[page].PhysicalPageID = page
 	mmu.ClearPageIsOnDisk(page)
-	err := mmu.MMUConfig.Swapper.SwapIn(page, mmu.PhysicalMem[page*PageSize:])
+	err = mmu.MMUConfig.Swapper.SwapIn(page, mmu.PhysicalMem[page*PageSize:])
 	if err != nil {
 		return err
 	}
@@ -146,5 +187,114 @@ func (mmu *MMUStruct) SwapInPhysicalPage(page int) error {
 }
 
 func (mmu *MMUStruct) SwapOutOldPages() error {
-	for ix, vx :=
+	swapOutList := make([]int, 0)
+	if len(mmu.LRUCache) > 3 {
+		// We can get at least three pages to swpa out
+		for i := 0; i < 3; i++ {
+			swapOutList = append(swapOutList, mmu.LRUCache[len(mmu.LRUCache)-1])
+			mmu.LRUCache = mmu.LRUCache[:len(mmu.LRUCache)-1]
+		}
+	} else {
+		if len(mmu.LRUCache) > 0 {
+			// We can't get three pages, do one
+			swapOutList = append(swapOutList, mmu.LRUCache[len(mmu.LRUCache)-1])
+			mmu.LRUCache = mmu.LRUCache[:len(mmu.LRUCache)-1]
+		} else {
+			// There are no pages to swap out -- This is an error
+			return errors.New("no pages to swap out")
+		}
+	}
+	for _, page := range swapOutList {
+		err := mmu.SwapOutPhysicalPage(page)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mmu *MMUStruct) TryPageSwap(page int) error {
+	count := 2
+	for count != 0 {
+		result := mmu.SwapInPhysicalPage(page)
+		if result == nil {
+			return nil
+		}
+		result2 := mmu.SwapOutOldPages()
+		if result2 != nil {
+			return result2
+		}
+		count--
+	}
+	return errors.New("page swap failed")
+}
+
+func (mmu *MMUStruct) WriteVirtualPage(owner int, group int, mode int, page int, buffer []byte) error {
+	// Make sure page is valid
+	if page > mmu.MMUConfig.NumVirtualPages {
+		return errors.New("invalid virtual page")
+	}
+	// Make sure page is active
+	if !mmu.PageIsActive(page) {
+		return errors.New("page is not active")
+	}
+	// Check our permissions
+	vpage := mmu.VirtualMemory[page]
+	mask := 0
+	if owner == vpage.ProcessID {
+		mask = PageProtectionMaskUser
+	}
+	if owner != vpage.ProcessID && group != vpage.GroupID {
+		mask = PageProtectionMaskWorld
+	}
+	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
+		return errors.New("permission denied")
+	}
+	// If page isn't in memory, bring it in
+	if mmu.PageIsOnDisk(page) {
+		err := mmu.TryPageSwap(page)
+		if err != nil {
+			return err
+		}
+	}
+	physicalPage := mmu.VirtualMemory[page].PhysicalPageID
+
+	copy(mmu.PhysicalMem[physicalPage*PageSize:physicalPage*PageSize+PageSize], buffer)
+	mmu.SetPageIsDirty(page)
+	mmu.pruneLRUCache(page)
+	return nil
+}
+
+func (mmu *MMUStruct) ReadVirtualPage(owner int, group int, mode int, page int) ([]byte, error) {
+	// Make sure page is valid
+	if page > mmu.MMUConfig.NumVirtualPages {
+		return nil, errors.New("invalid virtual page")
+	}
+	// Make sure page is active
+	if !mmu.PageIsActive(page) {
+		return nil, errors.New("page is not active")
+	}
+	// Check our permissions
+	vpage := mmu.VirtualMemory[page]
+	mask := 0
+	if owner == vpage.ProcessID {
+		mask = PageProtectionMaskUser
+	}
+	if owner != vpage.ProcessID && group != vpage.GroupID {
+		mask = PageProtectionMaskWorld
+	}
+	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
+		return nil, errors.New("permission denied")
+	}
+	// If page isn't in memory, bring it in
+	if mmu.PageIsOnDisk(page) {
+		err := mmu.TryPageSwap(page)
+		if err != nil {
+			return nil, err
+		}
+	}
+	physicalPage := mmu.VirtualMemory[page].PhysicalPageID
+	mmu.SetPageIsDirty(page)
+	mmu.pruneLRUCache(page)
+	return mmu.PhysicalMem[physicalPage*PageSize : physicalPage*PageSize+PageSize], nil
 }

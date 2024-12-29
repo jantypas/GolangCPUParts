@@ -12,6 +12,10 @@ const (
 	PageProtectionKWorldCanWrite   = 0x100
 	PageProtectionKWorldCanExecute = 0x200
 
+	PageProtectionMaskUser  = 0x000F
+	PageProtectionMaskGroup = 0x00F0
+	PageProtectionMaskWorld = 0x0F00
+
 	PageSize = 4096
 
 	PageIsActive = 0x1
@@ -24,8 +28,27 @@ const (
 	ProtectionHaveSystem  = 0x8
 
 	VirtualErrorNoPages = 0x1
+
+	ProcessStateSleeping     = 0
+	ProcessStateWaitingForIO = 1
+	ProcessStateWaitingToRun = 2
+	ProcessStateRunning      = 3
 )
 
+type ProcessObject struct {
+	Name          string
+	Args          []string
+	PID           int
+	GID           int
+	System        bool
+	State         int
+	VirtualMemory []int
+}
+
+type ProcessTable struct {
+	ProcessList []ProcessObject
+	MMU         MMUStruct
+}
 type MMUConfig struct {
 	Swapper          SwapperInterface // The swapper that swaps pages in and out from disk
 	NumVirtualPages  int              // Number of virtual memory pages
