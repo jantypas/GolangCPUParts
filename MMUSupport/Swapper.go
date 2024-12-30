@@ -1,13 +1,8 @@
-package MMU
+package MMUSupport
 
 import "os"
 
-// SwapperInterface
-// The SwapperInterface lets us swap pages in and out of memory
-type SwapperInterface struct {
-	FileHandle *os.File
-	Filename   string
-}
+const SwapPageSize = 4096
 
 func (s *SwapperInterface) Initialize() error {
 	file, err := os.OpenFile(s.Filename, os.O_RDWR|os.O_CREATE, 0666)
@@ -31,11 +26,11 @@ func (s *SwapperInterface) Terminate() error {
 }
 
 func (s *SwapperInterface) SwapOut(page int, buffer []byte) error {
-	_, err := s.FileHandle.Seek(int64(page*PageSize), 0)
+	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
 		return err
 	}
-	_, err = s.FileHandle.Write(buffer[:PageSize])
+	_, err = s.FileHandle.Write(buffer[:SwapPageSize])
 	if err != nil {
 		return err
 	}
@@ -43,11 +38,11 @@ func (s *SwapperInterface) SwapOut(page int, buffer []byte) error {
 }
 
 func (s *SwapperInterface) SwapIn(page int, buffer []byte) error {
-	_, err := s.FileHandle.Seek(int64(page*PageSize), 0)
+	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
 		return err
 	}
-	_, err = s.FileHandle.Read(buffer[:PageSize])
+	_, err = s.FileHandle.Read(buffer[:SwapPageSize])
 	if err != nil {
 		return err
 	}

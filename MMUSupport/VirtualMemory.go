@@ -1,4 +1,4 @@
-package MMU
+package MMUSupport
 
 import (
 	"errors"
@@ -347,10 +347,10 @@ func (mmu *MMUStruct) FreeBulkPages(pages []int) error {
 	return nil
 }
 
-func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, desiredPages int) ([]int, error) {
+func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, seg int, desiredPages int) ([]int, error) {
 	lst := make([]int, desiredPages)
 	for i := 0; i < desiredPages; i++ {
-		page, _, err := mmu.AllocateNewVirtualPageNoSwap(uid, gid, prot)
+		page, _, err := mmu.AllocateNewVirtualPageNoSwap(uid, gid, prot, seg)
 		if err != nil {
 			return nil, err
 		}

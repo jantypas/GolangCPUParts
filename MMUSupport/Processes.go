@@ -1,4 +1,4 @@
-package MMU
+package MMUSupport
 
 import (
 	"GolangCPUParts/RemoteLogging"
@@ -130,7 +130,7 @@ func (pt *ProcessTable) DestroyProcess(pid int) error {
 	return nil
 }
 
-func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, newPages int) error {
+func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, seg int, newPages int) error {
 	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
 		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
 		EventApp:    "",
@@ -149,7 +149,7 @@ func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, newPages int) er
 		})
 		return errors.New("invalid process")
 	}
-	pagelist, err := pt.MMU.AllocateBulkPages(pid, gid, prot, newPages)
+	pagelist, err := pt.MMU.AllocateBulkPages(pid, gid, prot, seg, newPages)
 	if err != nil {
 		return err
 	}
@@ -198,6 +198,14 @@ func (pt *ProcessTable) GetProcessList() map[int]ProcessObject {
 }
 
 func (pt *ProcessTable) SetProcessState(pid int, state int) error {
+	RemoteLogging.LogEvent(
+		RemoteLogging.LogEventStruct{
+			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "Process SetProcessState",
+			EventMsg:    "Starting Set Process State",
+		})
 	po, ok := pt.ProcessList[pid]
 	if !ok {
 		return errors.New("invalid process")
@@ -211,12 +219,33 @@ func (pt *ProcessTable) ReadAddress(
 	uid int, gid int,
 	mode int, seg int,
 	pid int, addr int) (byte, error) {
+	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+		EventApp:    "",
+		EventLevel:  "INFO",
+		EventSource: "Process ReadAddress",
+		EventMsg:    "Starting Read Address",
+	})
 	_, ok := pt.ProcessList[pid]
 	if !ok {
+		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "Process ReadAddress",
+			EventMsg:    "Process not found",
+		})
 		return 0, errors.New("invalid process")
 	}
 	page := addr / PageSize
 	if page > pt.MMU.MMUConfig.NumVirtualPages {
+		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "Process ReadAddress",
+			EventMsg:    "Invalid address",
+		})
 		return 0, errors.New("invalid address")
 	}
 	virtualPage, err := pt.MMU.ReadVirtualPage(uid, gid, mode, seg, page)
@@ -224,6 +253,13 @@ func (pt *ProcessTable) ReadAddress(
 		return 0, err
 	}
 	offset := addr % PageSize
+	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+		EventApp:    "",
+		EventLevel:  "INFO",
+		EventSource: "Process ReadAddress",
+		EventMsg:    "Read Address complete",
+	})
 	return virtualPage[offset], nil
 }
 
@@ -231,12 +267,33 @@ func (pt *ProcessTable) WriteAddress(
 	uid int, gid int,
 	mode int, seg int,
 	pid int, addr int, value byte) error {
+	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+		EventApp:    "",
+		EventLevel:  "INFO",
+		EventSource: "Process WriteAddress",
+		EventMsg:    "Starting Write Address",
+	})
 	_, ok := pt.ProcessList[pid]
 	if !ok {
+		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "Process WriteAddress",
+			EventMsg:    "Process not found",
+		})
 		return errors.New("invalid process")
 	}
 	page := addr / PageSize
 	if page > pt.MMU.MMUConfig.NumVirtualPages {
+		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "Process WriteAddress",
+			EventMsg:    "Invalid address",
+		})
 		return errors.New("invalid address")
 	}
 	virtualPage, err := pt.MMU.ReadVirtualPage(uid, gid, mode, seg, page)
@@ -245,5 +302,12 @@ func (pt *ProcessTable) WriteAddress(
 	}
 	offset := addr % PageSize
 	virtualPage[offset] = value
+	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
+		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+		EventApp:    "",
+		EventLevel:  "INFO",
+		EventSource: "Process WriteAddress",
+		EventMsg:    "Write Address complete",
+	})
 	return pt.MMU.WriteVirtualPage(uid, gid, mode, seg, page, virtualPage)
 }

@@ -1,6 +1,9 @@
-package MMU
+package MMUSupport
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 const (
 	PageProtectionUserCanRead      = 0x1
@@ -37,6 +40,13 @@ const (
 	ProcessStateRunning      = 3
 )
 
+// SwapperInterface
+// The SwapperInterface lets us swap pages in and out of memory
+type SwapperInterface struct {
+	FileHandle *os.File
+	Filename   string
+}
+
 type ProcessObject struct {
 	Name      string
 	Args      []string
@@ -71,7 +81,6 @@ type VirtualPage struct {
 
 type MMUStruct struct {
 	MMUConfig         MMUConfig
-	TLB               []MMUTLB
 	PhysicalMem       []byte
 	VirtualMemory     []VirtualPage
 	FreeVirtualPages  []int
