@@ -1,5 +1,7 @@
 package MMU
 
+import "time"
+
 const (
 	PageProtectionUserCanRead      = 0x1
 	PageProtectionUserCanWrite     = 0x2
@@ -35,25 +37,35 @@ const (
 	ProcessStateRunning      = 3
 )
 
+type Segment struct {
+	Name       string
+	Protection int
+	PID        int
+	GID        int
+	Memory     []int
+}
+
 type ProcessObject struct {
-	Name          string
-	Args          []string
-	PID           int
-	GID           int
-	System        bool
-	State         int
-	VirtualMemory []int
+	Name         string
+	Args         []string
+	PID          int
+	PPID         int
+	GID          int
+	System       bool
+	State        int
+	SegmentTable []Segment
+	CreatedOn    time.Time
 }
 
 type ProcessTable struct {
-	ProcessList []ProcessObject
+	ProcessList map[int]ProcessObject
+	NextPID     int
 	MMU         MMUStruct
 }
 type MMUConfig struct {
 	Swapper          SwapperInterface // The swapper that swaps pages in and out from disk
 	NumVirtualPages  int              // Number of virtual memory pages
 	NumPhysicalPages int              // Number of physical memory pages
-	TLBSize          int
 }
 
 type MMUTLB struct {

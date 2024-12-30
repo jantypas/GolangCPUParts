@@ -4,6 +4,7 @@ import (
 	"errors"
 )
 
+// A bund of useful utility functions
 func (mmu *MMUStruct) PageIsOnDisk(page int) bool {
 	return mmu.VirtualMemory[page].Flags&PageIsOnDisk == PageIsOnDisk
 }
@@ -62,6 +63,27 @@ func (mmu *MMUStruct) CheckPermissionsOk(mode int, mask int, prot int) bool {
 	return mode&finalMask == mode
 }
 
+// VirtualMemoryInitialize -- Initialize the virtual memory system
+func VirtualMemoryInitialize(mmu *MMUConfig) (MMUStruct, error) {
+	m := MMUStruct{
+		MMUConfig: *mmu,
+	}
+	err := m.MakeVirtualMemoryTable()
+	if err != nil {
+		return m, err
+	}
+	return m, nil
+}
+
+// VirtualMemoryTerminate -- Terminate the virtual memoryh system
+func (mmu *MMUStruct) VirtualMemoryTerminate() error {
+	err := mmu.MMUConfig.Swapper.Terminate()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // MakeVirtualMemroyTable - Create the virtual emmroy table
 // Build the virtual memory table strcutures.  Returns an error
 func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
@@ -72,6 +94,10 @@ func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
 		mmu.FreeVirtualPages = append(mmu.FreeVirtualPages, i)
 	}
 	mmu.LRUCache = make([]int, 64)
+	err := mmu.MMUConfig.Swapper.Initialize()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -297,4 +323,26 @@ func (mmu *MMUStruct) ReadVirtualPage(owner int, group int, mode int, page int) 
 	mmu.SetPageIsDirty(page)
 	mmu.pruneLRUCache(page)
 	return mmu.PhysicalMem[physicalPage*PageSize : physicalPage*PageSize+PageSize], nil
+}
+
+func (mmu *MMUStruct) FreeBulkPages(pages []int) error {
+	for _, page := range pages {
+		err := mmu.FreeVirtualPage(page)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, desiredPages int) ([]int, error) {
+	lst := make([]int, desiredPages)
+	for i := 0; i < desiredPages; i++ {
+		page, _, err := mmu.AllocateNewVirtualPageNoSwap(uid, gid, prot)
+		if err != nil {
+			return nil, err
+		}
+		lst := append(lst, page)
+	}
+	return lst, nil
 }
