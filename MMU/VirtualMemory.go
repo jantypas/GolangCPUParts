@@ -45,7 +45,6 @@ func (mmu *MMUStruct) pruneLRUCache(value int) {
 	mmu.LRUCache = append(mmu.LRUCache, value)
 	mmu.LRUCache = append(mmu.LRUCache, result...)
 }
-
 func (mmu *MMUStruct) CheckPermissionsOk(mode int, mask int, prot int) bool {
 	finalMask := 0
 
@@ -106,7 +105,8 @@ func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
 func (mmu *MMUStruct) AllocateNewVirtualPageNoSwap(
 	owner int,
 	group int,
-	protect int) (int, int, error) {
+	protect int,
+	seg int) (int, int, error) {
 	if len(mmu.FreeVirtualPages) == 0 {
 		return 0, VirtualErrorNoPages, errors.New("no virtual pages")
 	}
@@ -115,6 +115,7 @@ func (mmu *MMUStruct) AllocateNewVirtualPageNoSwap(
 	mmu.UsedVirtualPages = append(mmu.UsedVirtualPages, pageID)
 	mmu.VirtualMemory[pageID].Protection = protect
 	mmu.VirtualMemory[pageID].ProcessID = owner
+	mmu.VirtualMemory[pageID].SegmentID = seg
 	mmu.VirtualMemory[pageID].GroupID = group
 	mmu.SetPageIsActive(pageID)
 	mmu.SetPageIsOnDisk(pageID)
@@ -255,7 +256,10 @@ func (mmu *MMUStruct) TryPageSwap(page int) error {
 	return errors.New("page swap failed")
 }
 
-func (mmu *MMUStruct) WriteVirtualPage(owner int, group int, mode int, page int, buffer []byte) error {
+func (mmu *MMUStruct) WriteVirtualPage(
+	owner int, group int,
+	mode int, seg int, page int,
+	buffer []byte) error {
 	// Make sure page is valid
 	if page > mmu.MMUConfig.NumVirtualPages {
 		return errors.New("invalid virtual page")
@@ -276,6 +280,9 @@ func (mmu *MMUStruct) WriteVirtualPage(owner int, group int, mode int, page int,
 	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
 		return errors.New("permission denied")
 	}
+	if mmu.VirtualMemory[page].SegmentID != seg {
+		return errors.New("invalid segment")
+	}
 	// If page isn't in memory, bring it in
 	if mmu.PageIsOnDisk(page) {
 		err := mmu.TryPageSwap(page)
@@ -291,7 +298,9 @@ func (mmu *MMUStruct) WriteVirtualPage(owner int, group int, mode int, page int,
 	return nil
 }
 
-func (mmu *MMUStruct) ReadVirtualPage(owner int, group int, mode int, page int) ([]byte, error) {
+func (mmu *MMUStruct) ReadVirtualPage(
+	owner int, group int,
+	mode int, seg int, page int) ([]byte, error) {
 	// Make sure page is valid
 	if page > mmu.MMUConfig.NumVirtualPages {
 		return nil, errors.New("invalid virtual page")
@@ -311,6 +320,9 @@ func (mmu *MMUStruct) ReadVirtualPage(owner int, group int, mode int, page int) 
 	}
 	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
 		return nil, errors.New("permission denied")
+	}
+	if mmu.VirtualMemory[page].SegmentID != seg {
+		return nil, errors.New("invalid segment")
 	}
 	// If page isn't in memory, bring it in
 	if mmu.PageIsOnDisk(page) {
@@ -342,7 +354,7 @@ func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, desiredPages
 		if err != nil {
 			return nil, err
 		}
-		lst := append(lst, page)
+		lst = append(lst, page)
 	}
 	return lst, nil
 }

@@ -97,3 +97,26 @@ func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, newPages int) er
 	po.SegmentTable[0].Memory = append(po.SegmentTable[0].Memory, pagelist...)
 	return nil
 }
+
+func (pt *ProcessTable) GetProcess(pid int) (ProcessObject, error) {
+	po, ok := pt.ProcessList[pid]
+	if !ok {
+		return ProcessObject{}, errors.New("invalid process")
+	}
+	return po, nil
+}
+
+func (pt *ProcessTable) ReadAddress(pid int, addr int) (byte, error) {
+
+}
+
+func (pt *ProcessTable) WriteAddress(pid int, addr int) error {
+
+}
+
+func (pt *ProcessTable) LoadPagesFromBuffer(pid int, addr int, buffer []byte) error {
+}
+
+func (pt *ProcessTable) SavePagesToBuffer(pid int, addr int, buffer []byte) error {
+
+}

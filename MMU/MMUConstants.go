@@ -37,24 +37,16 @@ const (
 	ProcessStateRunning      = 3
 )
 
-type Segment struct {
-	Name       string
-	Protection int
-	PID        int
-	GID        int
-	Memory     []int
-}
-
 type ProcessObject struct {
-	Name         string
-	Args         []string
-	PID          int
-	PPID         int
-	GID          int
-	System       bool
-	State        int
-	SegmentTable []Segment
-	CreatedOn    time.Time
+	Name      string
+	Args      []string
+	PID       int
+	PPID      int
+	GID       int
+	System    bool
+	State     int
+	Memory    []int
+	CreatedOn time.Time
 }
 
 type ProcessTable struct {
@@ -68,17 +60,13 @@ type MMUConfig struct {
 	NumPhysicalPages int              // Number of physical memory pages
 }
 
-type MMUTLB struct {
-	VirtualPageID  int
-	PhysicalPageID int
-}
-
 type VirtualPage struct {
 	PhysicalPageID int
 	Protection     int
 	Flags          int
 	ProcessID      int
 	GroupID        int
+	SegmentID      int
 }
 
 type MMUStruct struct {
