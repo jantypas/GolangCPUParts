@@ -62,29 +62,6 @@ func (pt *ProcessTable) DestroyProcess(pid int) error {
 	return nil
 }
 
-func (pt *ProcessTable) AddSegmentToProcess(
-	pid int, gid int,
-	prot int, name string,
-	desiredPages int) error {
-	po, ok := pt.ProcessList[pid]
-	if !ok {
-		return errors.New("invalid process")
-	}
-	seg := Segment{
-		Name:       name,
-		Protection: prot,
-		Memory:     make([]int, desiredPages),
-		GID:        gid,
-	}
-	pagelist, err := pt.MMU.AllocateBulkPages(pid, gid, prot, desiredPages)
-	if err != nil {
-		return err
-	}
-	seg.Memory = pagelist
-	po.SegmentTable = append(po.SegmentTable, seg)
-	return nil
-}
-
 func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, newPages int) error {
 	po, ok := pt.ProcessList[pid]
 	if !ok {
@@ -98,7 +75,7 @@ func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, newPages int) er
 	return nil
 }
 
-func (pt *ProcessTable) GetProcess(pid int) (ProcessObject, error) {
+func (pt *ProcessTable) GetProcessInfo(pid int) (ProcessObject, error) {
 	po, ok := pt.ProcessList[pid]
 	if !ok {
 		return ProcessObject{}, errors.New("invalid process")
@@ -106,7 +83,15 @@ func (pt *ProcessTable) GetProcess(pid int) (ProcessObject, error) {
 	return po, nil
 }
 
+func (pt *ProcessTable) GetProcessList() map[int]ProcessObject {
+	return pt.ProcessList
+}
+
 func (pt *ProcessTable) ReadAddress(pid int, addr int) (byte, error) {
+
+}
+
+func (pt *ProcessTable) SetProcessState(pid int, state int) error {
 
 }
 

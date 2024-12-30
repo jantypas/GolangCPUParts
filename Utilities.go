@@ -1,5 +1,4 @@
 package GolangCPUParts
-package GolangCPUParts
 
 // FindIndex returns the index of the first occurrence of `value` in the slice,
 // or -1 if the value is not found.
