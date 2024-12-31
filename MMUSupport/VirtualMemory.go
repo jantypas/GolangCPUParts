@@ -278,6 +278,7 @@ func (mmu *MMUStruct) SwapOutOldPages() error {
 }
 
 func (mmu *MMUStruct) TryPageSwap(page int) error {
+	RemoteLogging.LogEvent("INFO", "TryPageSwap", "Trying to swap page")
 	count := 2
 	for count != 0 {
 		result := mmu.SwapInPhysicalPage(page)
@@ -290,6 +291,7 @@ func (mmu *MMUStruct) TryPageSwap(page int) error {
 		}
 		count--
 	}
+	RemoteLogging.LogEvent("INFO", "TryPageSwap", "TryPageSwap complete")
 	return errors.New("page swap failed")
 }
 
@@ -297,12 +299,15 @@ func (mmu *MMUStruct) WriteVirtualPage(
 	owner int, group int,
 	mode int, seg int, page int,
 	buffer []byte) error {
+	RemoteLogging.LogEvent("INFO", "WriteVirtualPage", "Writing virtual page")
 	// Make sure page is valid
 	if page > mmu.MMUConfig.NumVirtualPages {
+		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Invalid virtual page")
 		return errors.New("invalid virtual page")
 	}
 	// Make sure page is active
 	if !mmu.PageIsActive(page) {
+		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Page is not active")
 		return errors.New("page is not active")
 	}
 	// Check our permissions
@@ -315,15 +320,18 @@ func (mmu *MMUStruct) WriteVirtualPage(
 		mask = PageProtectionMaskWorld
 	}
 	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
+		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Permission denied")
 		return errors.New("permission denied")
 	}
 	if mmu.VirtualMemory[page].SegmentID != seg {
+		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Invalid segment")
 		return errors.New("invalid segment")
 	}
 	// If page isn't in memory, bring it in
 	if mmu.PageIsOnDisk(page) {
 		err := mmu.TryPageSwap(page)
 		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Error trying to swap page")
 			return err
 		}
 	}
@@ -332,18 +340,22 @@ func (mmu *MMUStruct) WriteVirtualPage(
 	copy(mmu.PhysicalMem[physicalPage*PageSize:physicalPage*PageSize+PageSize], buffer)
 	mmu.SetPageIsDirty(page)
 	mmu.pruneLRUCache(page)
+	RemoteLogging.LogEvent("INFO", "WriteVirtualPage", "Virtual page written")
 	return nil
 }
 
 func (mmu *MMUStruct) ReadVirtualPage(
 	owner int, group int,
 	mode int, seg int, page int) ([]byte, error) {
+	RemoteLogging.LogEvent("INFO", "ReadVirtualPage", "Reading virtual page")
 	// Make sure page is valid
 	if page > mmu.MMUConfig.NumVirtualPages {
+		RemoteLogging.LogEvent("ERROR", "ReadVirtualPage", "Invalid virtual page")
 		return nil, errors.New("invalid virtual page")
 	}
 	// Make sure page is active
 	if !mmu.PageIsActive(page) {
+		RemoteLogging.LogEvent("ERROR", "ReadVirtualPage", "Page is not active")
 		return nil, errors.New("page is not active")
 	}
 	// Check our permissions
@@ -365,26 +377,32 @@ func (mmu *MMUStruct) ReadVirtualPage(
 	if mmu.PageIsOnDisk(page) {
 		err := mmu.TryPageSwap(page)
 		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "ReadVirtualPage", "Error trying to swap page")
 			return nil, err
 		}
 	}
 	physicalPage := mmu.VirtualMemory[page].PhysicalPageID
 	mmu.SetPageIsDirty(page)
 	mmu.pruneLRUCache(page)
+	RemoteLogging.LogEvent("INFO", "ReadVirtualPage", "Virtual page read")
 	return mmu.PhysicalMem[physicalPage*PageSize : physicalPage*PageSize+PageSize], nil
 }
 
 func (mmu *MMUStruct) FreeBulkPages(pages []int) error {
+	RemoteLogging.LogEvent("INFO", "FreeBulkPages", "Freeing bulk pages")
 	for _, page := range pages {
 		err := mmu.FreeVirtualPage(page)
 		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "FreeBulkPages", "Error freeing page")
 			return err
 		}
 	}
+	RemoteLogging.LogEvent("INFO", "FreeBulkPages", "Bulk pages freed")
 	return nil
 }
 
 func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, seg int, desiredPages int) ([]int, error) {
+	RemoteLogging.LogEvent("INFO", "AllocateBulkPages", "Allocating bulk pages")
 	lst := make([]int, desiredPages)
 	for i := 0; i < desiredPages; i++ {
 		page, _, err := mmu.AllocateNewVirtualPageNoSwap(uid, gid, prot, seg)
@@ -393,5 +411,6 @@ func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, seg int, des
 		}
 		lst = append(lst, page)
 	}
+	RemoteLogging.LogEvent("INFO", "AllocateBulkPages", "Bulk pages allocated")
 	return lst, nil
 }
