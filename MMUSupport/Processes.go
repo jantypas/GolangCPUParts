@@ -8,72 +8,36 @@ import (
 
 func ProcessTableInitialize(mconf *MMUConfig) (*ProcessTable, error) {
 	// Create a virtual memory object
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "ProcessTableInitialize",
-		EventMsg:    "Starting initialization",
-	})
+	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Initialization started")
 	mmu, err := VirtualMemoryInitialize(mconf)
 	if err != nil {
 		return nil, err
 	}
 	// Create the process table
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "ProcessTableInitialize",
-		EventMsg:    "Creating procesws table",
-	})
+	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Creating process table")
 	pt := ProcessTable{
 		MMU:         mmu,
 		ProcessList: make(map[int]ProcessObject),
 		NextPID:     1,
 	}
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "ProcessTableInitialize",
-		EventMsg:    "Initialization complete",
-	})
+	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Initialization complete")
 	return &pt, nil
 }
 
 func ProcessTableTerminate(pt *ProcessTable) error {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "ProcessTableTerminate",
-		EventMsg:    "Starting termination",
-	})
+	RemoteLogging.LogEvent("INFO", "ProcessTableTerminate", "Termination started")
 	err := pt.MMU.VirtualMemoryTerminate()
 	if err != nil {
 		return err
 	}
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "ProcessTableTerminate",
-		EventMsg:    "Termination complete",
-	})
+	RemoteLogging.LogEvent("INFO", "ProcessTabbleTerminate", "Termination complete")
 	return nil
 }
 
 func (pt *ProcessTable) CreateNewProcess(
 	name string, args []string,
 	ppid int, gid int) error {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process CreateProcess",
-		EventMsg:    "Creation started",
-	})
+	RemoteLogging.LogEvent("INFO", Process CreateProcess", "CreateProcess start")
 	po := ProcessObject{
 		Name:      name,
 		Args:      args,
@@ -86,33 +50,16 @@ func (pt *ProcessTable) CreateNewProcess(
 		CreatedOn: time.Now(),
 	}
 	pt.ProcessList[pt.NextPID] = po
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process CreateProcess",
-		EventMsg:    "Creation complete Process ID"})
 	pt.NextPID++
+	RemoteLogging.LogEvent("INFO", "Process CreateProcess", "Create process completed")
 	return nil
 }
 
 func (pt *ProcessTable) DestroyProcess(pid int) error {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process DestroyProcess",
-		EventMsg:    "Starting Destroy Process",
-	})
+	RemoteLogging.LogEvent("INFO", "Process DestroyProcess", "DestroyProcess started")
 	po, ok := pt.ProcessList[pid]
 	if !ok {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process DestroyProcess",
-			EventMsg:    "Process not found",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process DestroyProcess", "Process not found")
 		return errors.New("invalid process")
 	}
 	err := pt.MMU.FreeBulkPages(po.Memory)
@@ -120,33 +67,15 @@ func (pt *ProcessTable) DestroyProcess(pid int) error {
 		return err
 	}
 	delete(pt.ProcessList, pid)
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process DestroyProcess",
-		EventMsg:    "Process destroyed",
-	})
+	RemoteLogging.LogEvent("INFO", "Process DestroyProcess", "Destroy process completed"")
 	return nil
 }
 
 func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, seg int, newPages int) error {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process GrowSegment",
-		EventMsg:    "Startied growing segment",
-	})
+	RemoteLogging.LogEvent("INFO", "Process Growpages", "Growpages started")
 	po, ok := pt.ProcessList[pid]
 	if !ok {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process GrowSegment",
-			EventMsg:    "Process not found",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process Growpages", "Process not found")
 		return errors.New("invalid process")
 	}
 	pagelist, err := pt.MMU.AllocateBulkPages(pid, gid, prot, seg, newPages)
@@ -154,42 +83,18 @@ func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, seg int, newPage
 		return err
 	}
 	po.Memory = append(po.Memory, pagelist...)
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process GrowSegment",
-		EventMsg:    "Grow segment complete",
-	})
+	RemoteLogging.LogEvent("INFO", "Process Growpages", "Growpages completed")
 	return nil
 }
 
 func (pt *ProcessTable) GetProcessInfo(pid int) (ProcessObject, error) {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process GetProcessInfo",
-		EventMsg:    "Starting Get Process Info",
-	})
+	RemoteLogging.LogEvent("INFO", "Process GetProcessInfo", "GetProcessInfo started"")
 	po, ok := pt.ProcessList[pid]
 	if !ok {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process GetProcessInfo",
-			EventMsg:    "Process not found",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process GetProcessInfo", "Process not found")
 		return ProcessObject{}, errors.New("invalid process")
 	}
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process GetProcessInfo",
-		EventMsg:    "Get Process Info complete",
-	})
+	RemoteLogging.LogEvent("INFO", "Process GetProcessInfo", "GetProcessInfo completed")
 	return po, nil
 }
 
@@ -198,16 +103,10 @@ func (pt *ProcessTable) GetProcessList() map[int]ProcessObject {
 }
 
 func (pt *ProcessTable) SetProcessState(pid int, state int) error {
-	RemoteLogging.LogEvent(
-		RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process SetProcessState",
-			EventMsg:    "Starting Set Process State",
-		})
+	RemoteLogging.LogEvent("INFO", "Process SetProcessState", "SetProcessState started")
 	po, ok := pt.ProcessList[pid]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR", "Process SetProcessState", "Process not found")
 		return errors.New("invalid process")
 	}
 	po.State = state
@@ -219,33 +118,15 @@ func (pt *ProcessTable) ReadAddress(
 	uid int, gid int,
 	mode int, seg int,
 	pid int, addr int) (byte, error) {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process ReadAddress",
-		EventMsg:    "Starting Read Address",
-	})
+	RemoteLogging.LogEvent("INFO", "Process ReadAddress", "ReadAddress started")
 	_, ok := pt.ProcessList[pid]
 	if !ok {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process ReadAddress",
-			EventMsg:    "Process not found",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process ReadAddress", "Process not found")
 		return 0, errors.New("invalid process")
 	}
 	page := addr / PageSize
 	if page > pt.MMU.MMUConfig.NumVirtualPages {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process ReadAddress",
-			EventMsg:    "Invalid address",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process ReadAddress", "Invalid address")
 		return 0, errors.New("invalid address")
 	}
 	virtualPage, err := pt.MMU.ReadVirtualPage(uid, gid, mode, seg, page)
@@ -253,13 +134,7 @@ func (pt *ProcessTable) ReadAddress(
 		return 0, err
 	}
 	offset := addr % PageSize
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process ReadAddress",
-		EventMsg:    "Read Address complete",
-	})
+	RemoteLogging.LogEvent("INFO", "Process ReadAddress", "ReadAddress completed")
 	return virtualPage[offset], nil
 }
 

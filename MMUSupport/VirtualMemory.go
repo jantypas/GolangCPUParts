@@ -1,6 +1,7 @@
 package MMUSupport
 
 import (
+	"GolangCPUParts/RemoteLogging"
 	"errors"
 )
 
@@ -64,6 +65,14 @@ func (mmu *MMUStruct) CheckPermissionsOk(mode int, mask int, prot int) bool {
 
 // VirtualMemoryInitialize -- Initialize the virtual memory system
 func VirtualMemoryInitialize(mmu *MMUConfig) (MMUStruct, error) {
+	RemoteLogging.LogEvent(
+		RemoteLogging.LogEventStruct{
+			EventTime:   "2006-01-02 15:04:05",
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "VirtualMemoryInitialize",
+			EventMsg:    "Starting initialization",
+		})
 	m := MMUStruct{
 		MMUConfig: *mmu,
 	}
@@ -71,6 +80,14 @@ func VirtualMemoryInitialize(mmu *MMUConfig) (MMUStruct, error) {
 	if err != nil {
 		return m, err
 	}
+	RemoteLogging.LogEvent(
+		RemoteLogging.LogEventStruct{
+			EventTime:   "2006-01-02 15:04:05",
+			EventApp:    "",
+			EventLevel:  "INFO",
+			EventSource: "VirtualMemoryInitialize",
+			EventMsg:    "Initialization complete",
+		})
 	return m, nil
 }
 

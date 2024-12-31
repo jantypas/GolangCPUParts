@@ -11,13 +11,15 @@ var logFile *os.File
 var logChannel chan LogEventStruct
 var logApp string
 var loggingActive bool = false
+var logCount = 0
 
 type LogEventStruct struct {
-	EventTime   string `json:"event_time"`
-	EventApp    string `json:"event_app"`
-	EventLevel  string `json:"event_level"`
-	EventSource string `json:"event_source"`
-	EventMsg    string `json:"event_msg"`
+	MessageNumber int    `json:"message_number"`
+	EventTime     string `json:"event_time"`
+	EventApp      string `json:"event_app"`
+	EventLevel    string `json:"event_level"`
+	EventSource   string `json:"event_source"`
+	EventMsg      string `json:"event_msg"`
 }
 
 func LogInit(appname string) error {
@@ -32,13 +34,15 @@ func LogInit(appname string) error {
 		go func() {
 			for {
 				msg := <-logChannel
+				logCount++
+				msg.MessageNumber = logCount
 				msg.EventApp = logApp
 				msg.EventTime = time.Now().Format("2006-01-02 15:04:05")
 				s, _ := json.Marshal(msg)
 				logFile.Write(s)
 			}
 		}()
-		time.Sleep(1)
+		time.Sleep(500 * time.Millisecond)
 		return nil
 	}
 }
@@ -47,8 +51,15 @@ func SetLogginActive(state bool) {
 	loggingActive = state
 }
 
-func LogEvent(msg LogEventStruct) {
+func LogEvent(level string, source string, msg string) {
 	if loggingActive {
+		msg := LogEventStruct{
+			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
+			EventLevel:  level,
+			EventSource: source,
+			EventMsg:    msg,
+		}
 		logChannel <- msg
 	}
+	time.Sleep(500 * time.Millisecond)
 }
