@@ -8,34 +8,14 @@ import (
 const SwapPageSize = 4096
 
 func (s *SwapperInterface) Initialize() error {
-	RemoteLogging.LogEvent(
-		RemoteLogging.LogEventStruct{
-			EventTime:   "2006-01-02 15:04:05",
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Swapper Initialize",
-			EventMsg:    "Starting initialization",
-		})
+	RemoteLogging.LogEvent("INFO", "Swapper Initialize", "Starting initialization")
 	file, err := os.OpenFile(s.Filename, os.O_RDWR|os.O_CREATE, 0666)
 	s.FileHandle = file
 	if err != nil {
-		RemoteLogging.LogEvent(
-			RemoteLogging.LogEventStruct{
-				EventTime:   "2006-01-02 15:04:05",
-				EventApp:    "",
-				EventLevel:  "INFO",
-				EventSource: "Swapper Initialize",
-				EventMsg:    "Error opening file",
-			})
+		RemoteLogging.LogEvent("ERROR", "Swapper Initialize", "Initialization failed")
 		return err
 	}
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   "2006-01-02 15:04:05",
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Swapper Initialize",
-		EventMsg:    "Initialization complete",
-	})
+	RemoteLogging.LogEvent("INFO", "Swapper Initialize", "Initialization completed")
 	return nil
 }
 

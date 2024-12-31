@@ -13,8 +13,9 @@ func main() {
 		NumPhysicalPages: 64,
 		Swapper:          MMUSupport.SwapperInterface{Filename: "/tmp/swap.swp"},
 	}
-	_, err := MMUSupport.ProcessTableInitialize(&mconf)
+	pt, err := MMUSupport.ProcessTableInitialize(&mconf)
 	if err != nil {
 		panic(err)
 	}
+	pt.CreateNewProcess("testproc", []string{}, 0, 1, 0, 1, 50)
 }

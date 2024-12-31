@@ -12,6 +12,7 @@ var logChannel chan LogEventStruct
 var logApp string
 var loggingActive bool = false
 var logCount = 0
+var logNoJson = false
 
 type LogEventStruct struct {
 	MessageNumber int    `json:"message_number"`
@@ -40,6 +41,7 @@ func LogInit(appname string) error {
 				msg.EventTime = time.Now().Format("2006-01-02 15:04:05")
 				s, _ := json.Marshal(msg)
 				logFile.Write(s)
+				logFile.Write([]byte("\n"))
 			}
 		}()
 		time.Sleep(500 * time.Millisecond)

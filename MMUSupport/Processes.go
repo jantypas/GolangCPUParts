@@ -36,19 +36,26 @@ func ProcessTableTerminate(pt *ProcessTable) error {
 
 func (pt *ProcessTable) CreateNewProcess(
 	name string, args []string,
-	ppid int, gid int) error {
-	RemoteLogging.LogEvent("INFO", Process CreateProcess", "CreateProcess start")
+	ppid int, gid int,
+	prot int, seg int, desiredPages int) error {
+	RemoteLogging.LogEvent("INFO", "Process CreateProcess", "CreateProcess start")
 	po := ProcessObject{
 		Name:      name,
 		Args:      args,
 		PID:       pt.NextPID,
 		PPID:      ppid,
 		GID:       gid,
-		Memory:    make([]int, 0),
+		Memory:    make([]int, desiredPages),
 		State:     ProcessStateWaitingToRun,
 		System:    false,
 		CreatedOn: time.Now(),
 	}
+	pages, err := pt.MMU.AllocateBulkPages(pt.NextPID, gid, prot, seg, desiredPages)
+	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Process CreateProcess", "Create process failed")
+		return err
+	}
+	po.Memory = append(po.Memory, pages...)
 	pt.ProcessList[pt.NextPID] = po
 	pt.NextPID++
 	RemoteLogging.LogEvent("INFO", "Process CreateProcess", "Create process completed")
@@ -67,7 +74,7 @@ func (pt *ProcessTable) DestroyProcess(pid int) error {
 		return err
 	}
 	delete(pt.ProcessList, pid)
-	RemoteLogging.LogEvent("INFO", "Process DestroyProcess", "Destroy process completed"")
+	RemoteLogging.LogEvent("INFO", "Process DestroyProcess", "Destroy process completed")
 	return nil
 }
 
@@ -88,7 +95,7 @@ func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, seg int, newPage
 }
 
 func (pt *ProcessTable) GetProcessInfo(pid int) (ProcessObject, error) {
-	RemoteLogging.LogEvent("INFO", "Process GetProcessInfo", "GetProcessInfo started"")
+	RemoteLogging.LogEvent("INFO", "Process GetProcessInfo", "GetProcessInfo started")
 	po, ok := pt.ProcessList[pid]
 	if !ok {
 		RemoteLogging.LogEvent("ERROR", "Process GetProcessInfo", "Process not found")
@@ -142,33 +149,15 @@ func (pt *ProcessTable) WriteAddress(
 	uid int, gid int,
 	mode int, seg int,
 	pid int, addr int, value byte) error {
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process WriteAddress",
-		EventMsg:    "Starting Write Address",
-	})
+	RemoteLogging.LogEvent("INFO", "Process WriteAddress", "WriteAddress started")
 	_, ok := pt.ProcessList[pid]
 	if !ok {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process WriteAddress",
-			EventMsg:    "Process not found",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process WriteAddress", "Process not found")
 		return errors.New("invalid process")
 	}
 	page := addr / PageSize
 	if page > pt.MMU.MMUConfig.NumVirtualPages {
-		RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-			EventApp:    "",
-			EventLevel:  "INFO",
-			EventSource: "Process WriteAddress",
-			EventMsg:    "Invalid address",
-		})
+		RemoteLogging.LogEvent("ERROR", "Process WriteAddress", "Invalid address")
 		return errors.New("invalid address")
 	}
 	virtualPage, err := pt.MMU.ReadVirtualPage(uid, gid, mode, seg, page)
@@ -177,12 +166,6 @@ func (pt *ProcessTable) WriteAddress(
 	}
 	offset := addr % PageSize
 	virtualPage[offset] = value
-	RemoteLogging.LogEvent(RemoteLogging.LogEventStruct{
-		EventTime:   time.Now().Format("2006-01-02 15:04:05"),
-		EventApp:    "",
-		EventLevel:  "INFO",
-		EventSource: "Process WriteAddress",
-		EventMsg:    "Write Address complete",
-	})
+	RemoteLogging.LogEvent("INFO", "Process WriteAddress", "WriteAddress completed")
 	return pt.MMU.WriteVirtualPage(uid, gid, mode, seg, page, virtualPage)
 }
