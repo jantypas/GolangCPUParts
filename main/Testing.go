@@ -17,5 +17,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	pt.CreateNewProcess("testproc", []string{}, 0, 1, 0, 1, 50)
+	pt.CreateNewProcess("testproc", []string{}, 0, 1, 0, 1, 20)
+	pt.DestroyProcess(1)
 }

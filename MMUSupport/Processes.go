@@ -55,7 +55,7 @@ func (pt *ProcessTable) CreateNewProcess(
 		RemoteLogging.LogEvent("ERROR", "Process CreateProcess", "Create process failed")
 		return err
 	}
-	po.Memory = append(po.Memory, pages...)
+	po.Memory = pages
 	pt.ProcessList[pt.NextPID] = po
 	pt.NextPID++
 	RemoteLogging.LogEvent("INFO", "Process CreateProcess", "Create process completed")

@@ -403,7 +403,7 @@ func (mmu *MMUStruct) FreeBulkPages(pages []int) error {
 
 func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, seg int, desiredPages int) ([]int, error) {
 	RemoteLogging.LogEvent("INFO", "AllocateBulkPages", "Allocating bulk pages")
-	lst := make([]int, desiredPages)
+	lst := make([]int, 0)
 	for i := 0; i < desiredPages; i++ {
 		page, _, err := mmu.AllocateNewVirtualPageNoSwap(uid, gid, prot, seg)
 		if err != nil {
