@@ -7,7 +7,7 @@ import (
 
 func main() {
 	RemoteLogging.LogInit("test")
-	RemoteLogging.SetLogginActive(true)
+	RemoteLogging.SetLogginActive(false)
 	mconf := MMUSupport.MMUConfig{
 		NumVirtualPages:  1024,
 		NumPhysicalPages: 64,

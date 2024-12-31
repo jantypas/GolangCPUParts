@@ -97,7 +97,7 @@ func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
 	mmu.FreeVirtualPages = make([]int, mmu.MMUConfig.NumVirtualPages)
 	mmu.UsedVirtualPages = make([]int, mmu.MMUConfig.NumVirtualPages)
 	for i := 0; i < mmu.MMUConfig.NumVirtualPages; i++ {
-		mmu.FreeVirtualPages = append(mmu.FreeVirtualPages, i)
+		mmu.FreeVirtualPages[i] = i
 	}
 	mmu.LRUCache = make([]int, 64)
 	err := mmu.MMUConfig.Swapper.Initialize()
