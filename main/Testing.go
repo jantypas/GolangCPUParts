@@ -3,6 +3,7 @@ package main
 import (
 	"GolangCPUParts/MMUSupport"
 	"GolangCPUParts/RemoteLogging"
+	"fmt"
 )
 
 func main() {
@@ -18,5 +19,8 @@ func main() {
 		panic(err)
 	}
 	pt.CreateNewProcess("testproc", []string{}, 0, 1, 0, 1, 20)
+	pt.WriteAddress(0, 1, 0, 1, 1, 500, 13)
+	v, err := pt.ReadAddress(0, 1, 0, 1, 1, 500)
+	fmt.Println(v)
 	pt.DestroyProcess(1)
 }

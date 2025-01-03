@@ -2,8 +2,17 @@ package MMUSupport
 
 import (
 	"GolangCPUParts/RemoteLogging"
+	"container/list"
 	"errors"
 )
+
+const LRUCacheSize = 32
+const LRUMinSwapSize = 3
+
+type VirtualPage struct {
+	PhysicalPageID int
+	Flags          int
+}
 
 // A bund of useful utility functions
 func (mmu *MMUStruct) PageIsOnDisk(page int) bool {
@@ -33,42 +42,13 @@ func (mmu *MMUStruct) SetPageIsDirty(page int) {
 func (mmu *MMUStruct) ClearPageIsDirty(page int) {
 	mmu.VirtualMemory[page].Flags &= ^PageIsOnDisk
 }
-func (mmu *MMUStruct) pruneLRUCache(value int) {
-	// Create a new slice to store the result
-	result := make([]int, 0, 64)
-
-	for _, v := range mmu.LRUCache {
-		if v != value {
-			result = append(result, v) // Add only items not equal to the value
-		}
-	}
-	mmu.LRUCache = make([]int, 0, 64)
-	mmu.LRUCache = append(mmu.LRUCache, value)
-	mmu.LRUCache = append(mmu.LRUCache, result...)
-}
-func (mmu *MMUStruct) CheckPermissionsOk(mode int, mask int, prot int) bool {
-	finalMask := 0
-
-	switch mask {
-	case PageProtectionMaskUser:
-		finalMask = prot & PageProtectionMaskUser
-		break
-	case PageProtectionMaskGroup:
-		finalMask = (prot & PageProtectionMaskGroup) >> 4
-		break
-	case PageProtectionMaskWorld:
-		finalMask = (prot & PageProtectionMaskWorld) >> 8
-		break
-	}
-	return mode&finalMask == mode
-}
 
 // VirtualMemoryInitialize -- Initialize the virtual memory system
 func VirtualMemoryInitialize(mmu *MMUConfig) (MMUStruct, error) {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Initializing virtual memory system")
-	m := MMUStruct{
-		MMUConfig: *mmu,
-	}
+	// Set up the MMU Struct
+	m := MMUStruct{MMUConfig: *mmu}
+	// Make the tables
 	err := m.MakeVirtualMemoryTable()
 	if err != nil {
 		return m, err
@@ -77,13 +57,21 @@ func VirtualMemoryInitialize(mmu *MMUConfig) (MMUStruct, error) {
 	return m, nil
 }
 
-// VirtualMemoryTerminate -- Terminate the virtual memoryh system
+// VirtualMemoryTerminate -- Terminate the virtual memory system
 func (mmu *MMUStruct) VirtualMemoryTerminate() error {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryTerminate", "Terminating virtual memory system")
+	// Stop the swapper
 	err := mmu.MMUConfig.Swapper.Terminate()
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "VirtualMemoryTerminate", "Error terminating virtual memory system")
 		return err
+	}
+	// Free Virtual Pages
+	for i := 0; i < mmu.MMUConfig.NumVirtualPages; i++ {
+		err := mmu.FreeVirtualPage(i)
+		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "VirtualMemoryTerminate", "Error freeing virtual page")
+		}
 	}
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryTerminate", "Virtual memory system terminated")
 	return nil
@@ -94,12 +82,16 @@ func (mmu *MMUStruct) VirtualMemoryTerminate() error {
 func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
 	RemoteLogging.LogEvent("INFO", "MakeVirtualMemoryTable", "Creating virtual memory table")
 	mmu.VirtualMemory = make([]VirtualPage, mmu.MMUConfig.NumVirtualPages)
-	mmu.FreeVirtualPages = make([]int, mmu.MMUConfig.NumVirtualPages)
-	mmu.UsedVirtualPages = make([]int, mmu.MMUConfig.NumVirtualPages)
+	mmu.FreeVirtualPages = list.New()
+	mmu.UsedVirtualPages = list.New()
+	mmu.FreePhysicalPages = list.New()
+	mmu.UsedPhysicalPages = list.New()
 	for i := 0; i < mmu.MMUConfig.NumVirtualPages; i++ {
-		mmu.FreeVirtualPages[i] = i
+		mmu.FreeVirtualPages.PushBack(i)
 	}
-	mmu.LRUCache = make([]int, 64)
+	for i := 0; i < mmu.MMUConfig.NumPhysicalPages; i++ {
+		mmu.FreePhysicalPages.PushBack(i)
+	}
 	err := mmu.MMUConfig.Swapper.Initialize()
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "MakeVirtualMemoryTable", "Error initializing virtual memory table")
@@ -111,23 +103,15 @@ func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
 
 // AllocateNewVirtualPageNoSwap -- Allocate a new virtual page from the virtual page table
 // Return the page table and an error
-func (mmu *MMUStruct) AllocateNewVirtualPageNoSwap(
-	owner int,
-	group int,
-	protect int,
-	seg int) (int, int, error) {
+func (mmu *MMUStruct) AllocateNewVirtualPageNoSwap() (int, int, error) {
 	RemoteLogging.LogEvent("INFO", "AllocateNewVirtualPageNoSwap", "Allocating new virtual page")
-	if len(mmu.FreeVirtualPages) == 0 {
+	// See if we're out of virtual pages
+	if mmu.FreeVirtualPages.Len() == 0 {
 		RemoteLogging.LogEvent("ERROR", "AllocateNewVirtualPageNoSwap", "No free virtual pages")
 		return 0, VirtualErrorNoPages, errors.New("no virtual pages")
 	}
-	pageID := mmu.FreeVirtualPages[0]
-	mmu.FreeVirtualPages = mmu.FreeVirtualPages[1:]
-	mmu.UsedVirtualPages = append(mmu.UsedVirtualPages, pageID)
-	mmu.VirtualMemory[pageID].Protection = protect
-	mmu.VirtualMemory[pageID].ProcessID = owner
-	mmu.VirtualMemory[pageID].SegmentID = seg
-	mmu.VirtualMemory[pageID].GroupID = group
+	// Get a free virtual page
+	pageID := mmu.FreeVirtualPages.Front().Value.(int)
 	mmu.SetPageIsActive(pageID)
 	mmu.SetPageIsOnDisk(pageID)
 	mmu.VirtualMemory[pageID].PhysicalPageID = -1
@@ -149,7 +133,7 @@ func (mmu *MMUStruct) FreeVirtualPage(page int) error {
 		RemoteLogging.LogEvent("ERROR", "FreeVirtualPage", "Page is already free")
 		return errors.New("page is already free")
 	}
-
+	// Is the page on disk
 	if mmu.PageIsOnDisk(page) {
 		// NO physical page to free, just free the virtual page
 		mmu.ClearPageIsActive(page)
@@ -189,7 +173,7 @@ func (mmu *MMUStruct) SwapOutPhysicalPage(page int) error {
 	// Find the physical page
 	physicalPage := mmu.VirtualMemory[page].PhysicalPageID
 	// Swap it out
-	err := mmu.MMUConfig.Swapper.SwapOut(physicalPage, mmu.PhysicalMem[physicalPage*PageSize:])
+	err := mmu.MMUConfig.Swapper.SwapOut(physicalPage)
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "SwapOutPhysicalPage", "Error swapping out physical page")
 		return err
@@ -235,7 +219,7 @@ func (mmu *MMUStruct) SwapInPhysicalPage(page int) error {
 	// Set up the physical page
 	mmu.VirtualMemory[page].PhysicalPageID = page
 	mmu.ClearPageIsOnDisk(page)
-	err = mmu.MMUConfig.Swapper.SwapIn(page, mmu.PhysicalMem[page*PageSize:])
+	err = mmu.MMUConfig.Swapper.SwapIn(page)
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "SwapInPhysicalPage", "Error swapping in physical page")
 		return err
@@ -244,34 +228,23 @@ func (mmu *MMUStruct) SwapInPhysicalPage(page int) error {
 	return nil
 }
 
+func (mmu *MMUStruct) UpdateLRU(page int) {
+	mmu.LRUCache.PushBack(page)
+	for mmu.LRUCache.Len() > LRUCacheSize {
+		mmu.LRUCache.Remove(mmu.LRUCache.Front())
+	}
+}
+
 func (mmu *MMUStruct) SwapOutOldPages() error {
 	RemoteLogging.LogEvent("INFO", "SwapOutOldPages", "Swapping out old pages")
-	swapOutList := make([]int, 0)
-	if len(mmu.LRUCache) > 3 {
-		RemoteLogging.LogEvent("INFO", "SwapOutOldPages", "Swapping out at least 3 old pages")
-		// We can get at least three pages to swpa out
-		for i := 0; i < 3; i++ {
-			swapOutList = append(swapOutList, mmu.LRUCache[len(mmu.LRUCache)-1])
-			mmu.LRUCache = mmu.LRUCache[:len(mmu.LRUCache)-1]
-		}
-	} else {
-		RemoteLogging.LogEvent("INFO", "SwapOutOldPages", "Swapping out at most 1 old pages")
-		if len(mmu.LRUCache) > 0 {
-			// We can't get three pages, do one
-			swapOutList = append(swapOutList, mmu.LRUCache[len(mmu.LRUCache)-1])
-			mmu.LRUCache = mmu.LRUCache[:len(mmu.LRUCache)-1]
-		} else {
-			RemoteLogging.LogEvent("ERROR", "SwapOutOldPages", "No old pages to swap out")
-			// There are no pages to swap out -- This is an error
-			return errors.New("no pages to swap out")
-		}
-	}
-	for _, page := range swapOutList {
+	for mmu.LRUCache.Len() > LRUMinSwapSize {
+		page := mmu.LRUCache.Front().Value.(int)
 		err := mmu.SwapOutPhysicalPage(page)
 		if err != nil {
 			RemoteLogging.LogEvent("ERROR", "SwapOutOldPages", "Error swapping out old page")
 			return err
 		}
+		mmu.LRUCache.Remove(mmu.LRUCache.Front())
 	}
 	RemoteLogging.LogEvent("INFO", "SwapOutOldPages", "Old pages swapped out")
 	return nil
@@ -295,10 +268,7 @@ func (mmu *MMUStruct) TryPageSwap(page int) error {
 	return errors.New("page swap failed")
 }
 
-func (mmu *MMUStruct) WriteVirtualPage(
-	owner int, group int,
-	mode int, seg int, page int,
-	buffer []byte) error {
+func (mmu *MMUStruct) WriteVirtualPage(page int, buffer []byte) error {
 	RemoteLogging.LogEvent("INFO", "WriteVirtualPage", "Writing virtual page")
 	// Make sure page is valid
 	if page > mmu.MMUConfig.NumVirtualPages {
@@ -310,36 +280,10 @@ func (mmu *MMUStruct) WriteVirtualPage(
 		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Page is not active")
 		return errors.New("page is not active")
 	}
-	// Check our permissions
-	vpage := mmu.VirtualMemory[page]
-	mask := 0
-	if owner == vpage.ProcessID {
-		mask = PageProtectionMaskUser
-	}
-	if owner != vpage.ProcessID && group != vpage.GroupID {
-		mask = PageProtectionMaskWorld
-	}
-	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
-		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Permission denied")
-		return errors.New("permission denied")
-	}
-	if mmu.VirtualMemory[page].SegmentID != seg {
-		RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Invalid segment")
-		return errors.New("invalid segment")
-	}
-	// If page isn't in memory, bring it in
-	if mmu.PageIsOnDisk(page) {
-		err := mmu.TryPageSwap(page)
-		if err != nil {
-			RemoteLogging.LogEvent("ERROR", "WriteVirtualPage", "Error trying to swap page")
-			return err
-		}
-	}
 	physicalPage := mmu.VirtualMemory[page].PhysicalPageID
-
 	copy(mmu.PhysicalMem[physicalPage*PageSize:physicalPage*PageSize+PageSize], buffer)
 	mmu.SetPageIsDirty(page)
-	mmu.pruneLRUCache(page)
+	mmu.UpdateLRU(page)
 	RemoteLogging.LogEvent("INFO", "WriteVirtualPage", "Virtual page written")
 	return nil
 }
@@ -358,21 +302,6 @@ func (mmu *MMUStruct) ReadVirtualPage(
 		RemoteLogging.LogEvent("ERROR", "ReadVirtualPage", "Page is not active")
 		return nil, errors.New("page is not active")
 	}
-	// Check our permissions
-	vpage := mmu.VirtualMemory[page]
-	mask := 0
-	if owner == vpage.ProcessID {
-		mask = PageProtectionMaskUser
-	}
-	if owner != vpage.ProcessID && group != vpage.GroupID {
-		mask = PageProtectionMaskWorld
-	}
-	if !mmu.CheckPermissionsOk(mode, mask, vpage.Protection) {
-		return nil, errors.New("permission denied")
-	}
-	if mmu.VirtualMemory[page].SegmentID != seg {
-		return nil, errors.New("invalid segment")
-	}
 	// If page isn't in memory, bring it in
 	if mmu.PageIsOnDisk(page) {
 		err := mmu.TryPageSwap(page)
@@ -383,7 +312,7 @@ func (mmu *MMUStruct) ReadVirtualPage(
 	}
 	physicalPage := mmu.VirtualMemory[page].PhysicalPageID
 	mmu.SetPageIsDirty(page)
-	mmu.pruneLRUCache(page)
+	mmu.UpdateLRU(page)
 	RemoteLogging.LogEvent("INFO", "ReadVirtualPage", "Virtual page read")
 	return mmu.PhysicalMem[physicalPage*PageSize : physicalPage*PageSize+PageSize], nil
 }
@@ -405,7 +334,7 @@ func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, seg int, des
 	RemoteLogging.LogEvent("INFO", "AllocateBulkPages", "Allocating bulk pages")
 	lst := make([]int, 0)
 	for i := 0; i < desiredPages; i++ {
-		page, _, err := mmu.AllocateNewVirtualPageNoSwap(uid, gid, prot, seg)
+		page, _, err := mmu.AllocateNewVirtualPageNoSwap()
 		if err != nil {
 			return nil, err
 		}

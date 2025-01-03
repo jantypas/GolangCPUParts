@@ -6,6 +6,24 @@ import (
 	"time"
 )
 
+type ProcessObject struct {
+	Name      string
+	Args      []string
+	PID       int
+	PPID      int
+	GID       int
+	System    bool
+	State     int
+	CreatedOn time.Time
+	Segments  []int
+}
+
+type ProcessTable struct {
+	ProcessList map[int]ProcessObject
+	NextPID     int
+	MMU         MMUStruct
+}
+
 func ProcessTableInitialize(mconf *MMUConfig) (*ProcessTable, error) {
 	// Create a virtual memory object
 	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Initialization started")

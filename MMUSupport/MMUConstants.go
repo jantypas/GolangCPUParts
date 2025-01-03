@@ -1,9 +1,6 @@
 package MMUSupport
 
-import (
-	"os"
-	"time"
-)
+import "container/list"
 
 const (
 	PageProtectionUserCanRead      = 0x1
@@ -40,52 +37,20 @@ const (
 	ProcessStateRunning      = 3
 )
 
-// SwapperInterface
-// The SwapperInterface lets us swap pages in and out of memory
-type SwapperInterface struct {
-	FileHandle *os.File
-	Filename   string
-}
-
-type ProcessObject struct {
-	Name      string
-	Args      []string
-	PID       int
-	PPID      int
-	GID       int
-	System    bool
-	State     int
-	Memory    []int
-	CreatedOn time.Time
-}
-
-type ProcessTable struct {
-	ProcessList map[int]ProcessObject
-	NextPID     int
-	MMU         MMUStruct
-}
 type MMUConfig struct {
 	Swapper          SwapperInterface // The swapper that swaps pages in and out from disk
 	NumVirtualPages  int              // Number of virtual memory pages
 	NumPhysicalPages int              // Number of physical memory pages
 }
 
-type VirtualPage struct {
-	PhysicalPageID int
-	Protection     int
-	Flags          int
-	ProcessID      int
-	GroupID        int
-	SegmentID      int
-}
-
 type MMUStruct struct {
 	MMUConfig         MMUConfig
 	PhysicalMem       []byte
 	VirtualMemory     []VirtualPage
-	FreeVirtualPages  []int
-	FreePhysicalPages []int
-	UsedVirtualPages  []int
-	UsedPhysicalPages []int
-	LRUCache          []int
+	FreeVirtualPages  *list.List
+	FreePhysicalPages *list.List
+	UsedVirtualPages  *list.List
+	UsedPhysicalPages *list.List
+	SegmentTable      *list.List
+	LRUCache          *list.List
 }

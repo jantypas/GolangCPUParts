@@ -2,32 +2,15 @@ package MMUSupport
 
 import "errors"
 
-// MakePhysicalPageTable -- Create the table for physical pages
-// Used when we need to create the physical page table the first time.
-func (mmu *MMUStruct) MakePhysicalPageTable() error {
-	// For every possible page, put it on the free list and make a table entry
-	for i := 0; i < mmu.MMUConfig.NumPhysicalPages; i++ {
-		mmu.FreePhysicalPages = append(mmu.FreePhysicalPages, i)
-	}
-	mmu.UsedPhysicalPages = make([]int, mmu.MMUConfig.NumPhysicalPages)
-	mmu.PhysicalMem = make([]byte, mmu.MMUConfig.NumPhysicalPages*PageSize)
-	return nil
-}
-
-// PercentFreePages -- How much of the physical page table is free
-func (mmu *MMUStruct) PercentFreePages() (float64, error) {
-	return float64(len(mmu.FreePhysicalPages)) / float64(mmu.MMUConfig.NumPhysicalPages), nil
-}
-
 // AllocateNewPhysicalPage -- allocate a new physical page from the free pages list
 // Returns the page number or error
 func (mmu *MMUStruct) AllocateNewPhysicalPage() (int, error) {
-	if len(mmu.FreePhysicalPages) == 0 {
+	if mmu.FreePhysicalPages.Len() == 0 {
 		return 0, errors.New("no physical pages")
 	}
-	pageID := mmu.FreePhysicalPages[0]
-	mmu.FreePhysicalPages = mmu.FreePhysicalPages[1:]
-	mmu.UsedPhysicalPages = append(mmu.UsedPhysicalPages, pageID)
+	pageID := mmu.FreePhysicalPages.Front().Value.(int)
+	mmu.FreePhysicalPages.Remove(mmu.FreePhysicalPages.Front())
+	mmu.UsedVirtualPages.PushBack(pageID)
 	return pageID, nil
 }
 
@@ -37,14 +20,8 @@ func (mmu *MMUStruct) ReturnPhysicalPage(page int) error {
 	if page > mmu.MMUConfig.NumPhysicalPages {
 		return errors.New("invalid physical page")
 	}
-	for ix, _ := range mmu.PhysicalMem {
-		if ix == page {
-			mmu.FreePhysicalPages = append(mmu.FreePhysicalPages, page)
-			mmu.UsedPhysicalPages = mmu.UsedPhysicalPages[:ix]
-			mmu.UsedPhysicalPages = mmu.UsedPhysicalPages[1:]
-			return nil
-		}
-	}
+	mmu.FreePhysicalPages.PushBack(page)
+	mmu.UsedVirtualPages.Remove(mmu.UsedVirtualPages.Front())
 	return errors.New("invalid physical page")
 }
 
