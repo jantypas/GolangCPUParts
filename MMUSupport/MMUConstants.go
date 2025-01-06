@@ -23,6 +23,7 @@ const (
 	PageIsActive = 0x1
 	PageIsDirty  = 0x2
 	PageIsOnDisk = 0x4
+	PageIsLocked = 0x8
 
 	ProtectionNeedRead    = 0x1
 	ProtectionNeedWrite   = 0x2
@@ -50,7 +51,6 @@ type MMUStruct struct {
 	FreeVirtualPages  *list.List
 	FreePhysicalPages *list.List
 	UsedVirtualPages  *list.List
-	UsedPhysicalPages *list.List
-	SegmentTable      *list.List
+	UsedPhysicalPages *list.L
 	LRUCache          *list.List
 }

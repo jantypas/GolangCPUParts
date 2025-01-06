@@ -1,189 +1,169 @@
 package MMUSupport
 
 import (
-	"GolangCPUParts/RemoteLogging"
 	"errors"
 	"time"
 )
 
+// Proc3essObject -- for every system procecss, one of these structures must exist
 type ProcessObject struct {
-	Name      string
-	Args      []string
-	PID       int
-	PPID      int
-	GID       int
-	System    bool
-	State     int
-	CreatedOn time.Time
-	Segments  []int
+	InUse           bool
+	Name            string    // The application name
+	Args            []string  // Application arguments
+	PID             uint      // Process ID
+	PPID            uint      // Parent process ID
+	UID             uint      // User ID
+	GID             uint      // Group ID
+	System          bool      // System privileges active
+	State           uint      // Process state flags
+	CreatedOn       time.Time // Creation date/time
+	ProcessContext  interface{}
+	SegmentIdx      uint
+	SegmentRequests []SegmentRequest
+	Segments        []Segment // Segments that make up this process
 }
 
+// ProcessTable -- all process structures above are kept in the process table
 type ProcessTable struct {
-	ProcessList map[int]ProcessObject
-	NextPID     int
-	MMU         MMUStruct
+	ProcessList []ProcessObject // The table of processes
+	NextPID     uint            // Next process ID
+	MMU         MMUStruct       // The MMU for all processes
 }
 
-func ProcessTableInitialize(mconf *MMUConfig) (*ProcessTable, error) {
-	// Create a virtual memory object
-	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Initialization started")
-	mmu, err := VirtualMemoryInitialize(mconf)
-	if err != nil {
-		return nil, err
-	}
-	// Create the process table
-	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Creating process table")
+type SegmentRequest struct {
+	Flags        uint
+	AddressBase  uint
+	AddressLimit uint
+	Perm         uint
+	NumPages     uint
+}
+type Segment struct {
+	Flags         uint
+	AddressBase   uint
+	AddressLimit  uint
+	NumPages      uint
+	Perm          uint
+	VirtualMemory []uint
+}
+
+func ProcessTableInitialize(mmu *MMUStruct) (*ProcessTable, error) {
 	pt := ProcessTable{
-		MMU:         mmu,
-		ProcessList: make(map[int]ProcessObject),
-		NextPID:     1,
+		ProcessList: make([]ProcessObject, 0),
+		NextPID:     0,
+		MMU:         *mmu,
 	}
-	RemoteLogging.LogEvent("INFO", "ProcessTableInitialize", "Initialization complete")
 	return &pt, nil
 }
 
-func ProcessTableTerminate(pt *ProcessTable) error {
-	RemoteLogging.LogEvent("INFO", "ProcessTableTerminate", "Termination started")
-	err := pt.MMU.VirtualMemoryTerminate()
-	if err != nil {
-		return err
+func (pt *ProcessTable) ProcessTableTerminate() error {
+	for k := 0; k < len(pt.ProcessList); k++ {
+		if pt.ProcessList[k].InUse {
+			err := pt.ProcessDestroyProcess(uint(k))
+			if err != nil {
+				return err
+			}
+		}
 	}
-	RemoteLogging.LogEvent("INFO", "ProcessTabbleTerminate", "Termination complete")
 	return nil
 }
 
-func (pt *ProcessTable) CreateNewProcess(
-	name string, args []string,
-	ppid int, gid int,
-	prot int, seg int, desiredPages int) error {
-	RemoteLogging.LogEvent("INFO", "Process CreateProcess", "CreateProcess start")
-	po := ProcessObject{
-		Name:      name,
-		Args:      args,
-		PID:       pt.NextPID,
-		PPID:      ppid,
-		GID:       gid,
-		Memory:    make([]int, desiredPages),
-		State:     ProcessStateWaitingToRun,
-		System:    false,
-		CreatedOn: time.Now(),
-	}
-	pages, err := pt.MMU.AllocateBulkPages(pt.NextPID, gid, prot, seg, desiredPages)
-	if err != nil {
-		RemoteLogging.LogEvent("ERROR", "Process CreateProcess", "Create process failed")
-		return err
-	}
-	po.Memory = pages
-	pt.ProcessList[pt.NextPID] = po
-	pt.NextPID++
-	RemoteLogging.LogEvent("INFO", "Process CreateProcess", "Create process completed")
-	return nil
-}
-
-func (pt *ProcessTable) DestroyProcess(pid int) error {
-	RemoteLogging.LogEvent("INFO", "Process DestroyProcess", "DestroyProcess started")
-	po, ok := pt.ProcessList[pid]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "Process DestroyProcess", "Process not found")
-		return errors.New("invalid process")
-	}
-	err := pt.MMU.FreeBulkPages(po.Memory)
-	if err != nil {
-		return err
-	}
-	delete(pt.ProcessList, pid)
-	RemoteLogging.LogEvent("INFO", "Process DestroyProcess", "Destroy process completed")
-	return nil
-}
-
-func (pt *ProcessTable) GrowSegment(pid int, gid int, prot int, seg int, newPages int) error {
-	RemoteLogging.LogEvent("INFO", "Process Growpages", "Growpages started")
-	po, ok := pt.ProcessList[pid]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "Process Growpages", "Process not found")
-		return errors.New("invalid process")
-	}
-	pagelist, err := pt.MMU.AllocateBulkPages(pid, gid, prot, seg, newPages)
-	if err != nil {
-		return err
-	}
-	po.Memory = append(po.Memory, pagelist...)
-	RemoteLogging.LogEvent("INFO", "Process Growpages", "Growpages completed")
-	return nil
-}
-
-func (pt *ProcessTable) GetProcessInfo(pid int) (ProcessObject, error) {
-	RemoteLogging.LogEvent("INFO", "Process GetProcessInfo", "GetProcessInfo started")
-	po, ok := pt.ProcessList[pid]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "Process GetProcessInfo", "Process not found")
-		return ProcessObject{}, errors.New("invalid process")
-	}
-	RemoteLogging.LogEvent("INFO", "Process GetProcessInfo", "GetProcessInfo completed")
-	return po, nil
-}
-
-func (pt *ProcessTable) GetProcessList() map[int]ProcessObject {
+func (pt *ProcessTable) ProcessTableList() []ProcessObject {
 	return pt.ProcessList
 }
 
-func (pt *ProcessTable) SetProcessState(pid int, state int) error {
-	RemoteLogging.LogEvent("INFO", "Process SetProcessState", "SetProcessState started")
-	po, ok := pt.ProcessList[pid]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "Process SetProcessState", "Process not found")
-		return errors.New("invalid process")
+func (pt *ProcessTable) ProcessCreate(p ProcessObject) error {
+	p.PID = pt.NextPID
+	p.State = ProcessStateWaitingToRun
+	p.CreatedOn = time.Now()
+	p.Segments = make([]Segment, len(p.SegmentRequests))
+	for _, sr := range p.SegmentRequests {
+		seg := Segment{
+			Flags:         sr.Flags,
+			AddressBase:   sr.AddressBase,
+			AddressLimit:  sr.AddressLimit,
+			NumPages:      sr.NumPages,
+			Perm:          sr.Perm,
+			VirtualMemory: make([]uint, sr.NumPages),
+		}
+		pages, err := pt.MMU.AllocateBulkPages(sr.NumPages)
+		if err != nil {
+			return err
+		}
+		seg.VirtualMemory = pages
+		p.Segments[p.SegmentIdx] = seg
+		p.SegmentIdx++
 	}
-	po.State = state
-	pt.ProcessList[pid] = po
+	pt.ProcessList[pt.NextPID].InUse = true
+	pt.ProcessList[pt.NextPID] = p
+	pt.NextPID++
 	return nil
 }
 
-func (pt *ProcessTable) ReadAddress(
-	uid int, gid int,
-	mode int, seg int,
-	pid int, addr int) (byte, error) {
-	RemoteLogging.LogEvent("INFO", "Process ReadAddress", "ReadAddress started")
-	_, ok := pt.ProcessList[pid]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "Process ReadAddress", "Process not found")
-		return 0, errors.New("invalid process")
+func (pt *ProcessTable) ProcessFindProcess(pid uint) (uint, error) {
+	for idx := 0; idx < len(pt.ProcessList); idx++ {
+		if pt.ProcessList[idx].InUse && pt.ProcessList[idx].PID == pid {
+			return uint(idx), nil
+		}
 	}
-	page := addr / PageSize
-	if page > pt.MMU.MMUConfig.NumVirtualPages {
-		RemoteLogging.LogEvent("ERROR", "Process ReadAddress", "Invalid address")
-		return 0, errors.New("invalid address")
-	}
-	virtualPage, err := pt.MMU.ReadVirtualPage(uid, gid, mode, seg, page)
-	if err != nil {
-		return 0, err
-	}
-	offset := addr % PageSize
-	RemoteLogging.LogEvent("INFO", "Process ReadAddress", "ReadAddress completed")
-	return virtualPage[offset], nil
+	return 0, errors.New("invalid process")
+
 }
 
-func (pt *ProcessTable) WriteAddress(
-	uid int, gid int,
-	mode int, seg int,
-	pid int, addr int, value byte) error {
-	RemoteLogging.LogEvent("INFO", "Process WriteAddress", "WriteAddress started")
-	_, ok := pt.ProcessList[pid]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "Process WriteAddress", "Process not found")
+func (pt *ProcessTable) ProcessDestroyProcess(pid uint) error {
+	idx, err := pt.ProcessFindProcess(pid)
+	if err != nil {
 		return errors.New("invalid process")
 	}
-	page := addr / PageSize
-	if page > pt.MMU.MMUConfig.NumVirtualPages {
-		RemoteLogging.LogEvent("ERROR", "Process WriteAddress", "Invalid address")
-		return errors.New("invalid address")
+	for _, seg := range pt.ProcessList[idx].Segments {
+		err := pt.MMU.FreeBulkPages(seg.VirtualMemory)
+		if err != nil {
+			return err
+		}
 	}
-	virtualPage, err := pt.MMU.ReadVirtualPage(uid, gid, mode, seg, page)
+	return nil
+}
+
+func (pt *ProcessTable) ProcessGrowSegment(pid uint, seg uint, numPages uint) error {
+	idx, err := pt.ProcessFindProcess(pid)
 	if err != nil {
-		return err
+		return errors.New("invalid process")
 	}
-	offset := addr % PageSize
-	virtualPage[offset] = value
-	RemoteLogging.LogEvent("INFO", "Process WriteAddress", "WriteAddress completed")
-	return pt.MMU.WriteVirtualPage(uid, gid, mode, seg, page, virtualPage)
+	po := pt.ProcessList[idx]
+	if seg > uint(len(po.Segments)) {
+		return errors.New("invalid segment")
+	}
+	newPages, err := pt.MMU.AllocateBulkPages(numPages)
+	pt.ProcessList[idx].Segments[seg].VirtualMemory = append(pt.ProcessList[idx].Segments[seg].VirtualMemory, newPages...)
+	return nil
+}
+
+func (pt *ProcessTable) ProcessReadPage(pid uint, page uint) ([]byte, error) {
+
+}
+func (pt *ProcessTable) ProcessWritePage(pid uint, page uint, value []byte) error {
+
+}
+func (pt *ProcessTable) ProcessReadByte(pid uint, addr uint) (byte, error) {
+
+}
+func (pt *ProcessTable) ProcessWriteByte(pid uint, addr uint, value byte) error {
+
+}
+func (pt *ProcessTable) ProcessReadWord(pid uint, addr uint) (uint16, error) {
+
+}
+func (pt *ProcessTable) ProcessWriteWord(pd uint, addr uint, value uint16) error {
+
+}
+func (pt *ProcessTable) ProcessReadDouble(pid uint, addr uint) (uint32, error) {
+
+}
+func (pt *ProcessTable) ProcessWriteDouble(pid uint, addr uint, value uint32) error {
+
+}
+func (pt *ProcessTable) ProcessReadQuad(pid uint, addr uint) (uint64, error) {
+
+}
+func (pt *ProcessTable) ProcessWriteQuad(pid uint, addr uint, value uint64) error {
+
 }

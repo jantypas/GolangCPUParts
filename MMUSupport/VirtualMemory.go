@@ -6,8 +6,10 @@ import (
 	"errors"
 )
 
-const LRUCacheSize = 32
-const LRUMinSwapSize = 3
+const (
+	LRUCacheSize   = 32
+	LRUMinSwapSize = 3
+)
 
 type VirtualPage struct {
 	PhysicalPageID int
@@ -317,7 +319,7 @@ func (mmu *MMUStruct) ReadVirtualPage(
 	return mmu.PhysicalMem[physicalPage*PageSize : physicalPage*PageSize+PageSize], nil
 }
 
-func (mmu *MMUStruct) FreeBulkPages(pages []int) error {
+func (mmu *MMUStruct) FreeBulkPages(pages []uint) error {
 	RemoteLogging.LogEvent("INFO", "FreeBulkPages", "Freeing bulk pages")
 	for _, page := range pages {
 		err := mmu.FreeVirtualPage(page)
@@ -330,10 +332,11 @@ func (mmu *MMUStruct) FreeBulkPages(pages []int) error {
 	return nil
 }
 
-func (mmu *MMUStruct) AllocateBulkPages(uid int, gid int, prot int, seg int, desiredPages int) ([]int, error) {
+func (mmu *MMUStruct) AllocateBulkPages(desiredPages uint) ([]uint, error) {
 	RemoteLogging.LogEvent("INFO", "AllocateBulkPages", "Allocating bulk pages")
 	lst := make([]int, 0)
-	for i := 0; i < desiredPages; i++ {
+	var i uint
+	for i = 0; i < desiredPages; i++ {
 		page, _, err := mmu.AllocateNewVirtualPageNoSwap()
 		if err != nil {
 			return nil, err
