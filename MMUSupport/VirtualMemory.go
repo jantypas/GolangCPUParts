@@ -332,7 +332,7 @@ func (mmu *MMUStruct) FreeBulkPages(pages []uint) error {
 	return nil
 }
 
-func (mmu *MMUStruct) AllocateBulkPages(desiredPages uint) ([]uint, error) {
+func (mmu *MMUStruct) AllocateBulkPages(desiredPages uint32) ([]uint32, error) {
 	RemoteLogging.LogEvent("INFO", "AllocateBulkPages", "Allocating bulk pages")
 	lst := make([]int, 0)
 	var i uint
