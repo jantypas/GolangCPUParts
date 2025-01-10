@@ -1,6 +1,7 @@
 package MMUSupport
 
 import (
+	"GolangCPUParts/MMUSupport/PhysicalMemory"
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
@@ -46,60 +47,42 @@ func (mmu *MMUStruct) ClearPageIsDirty(page int) {
 }
 
 // VirtualMemoryInitialize -- Initialize the virtual memory system
-func VirtualMemoryInitialize(mmu *MMUConfig) (MMUStruct, error) {
+func VirtualMemoryInitialize(pm PhysicalMemory.PhysicalMemory, sw SwapperInterface, numVirPages uint32) (MMUStruct, error) {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Initializing virtual memory system")
 	// Set up the MMU Struct
-	m := MMUStruct{MMUConfig: *mmu}
-	// Make the tables
-	err := m.MakeVirtualMemoryTable()
-	if err != nil {
-		return m, err
+	m := MMUStruct{
+		Swapper:          sw,
+		PhysicalMemory:   pm,
+		FreeVirtualPages: list.New(),
+		UsedVirtualPages: list.New(),
+		LRUCache:         list.New(),
+		VirtualMemory:    make([]VirtualPage, numVirPages),
+	}
+	for i := 0; i < int(numVirPages); i++ {
+		m.FreeVirtualPages.PushBack(i)
 	}
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Virtual memory system initialized")
 	return m, nil
 }
 
 // VirtualMemoryTerminate -- Terminate the virtual memory system
-func (mmu *MMUStruct) VirtualMemoryTerminate() error {
+func (mmu *MMUStruct) Terminate() error {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryTerminate", "Terminating virtual memory system")
 	// Stop the swapper
-	err := mmu.MMUConfig.Swapper.Terminate()
+	err := mmu.Swapper.Terminate()
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "VirtualMemoryTerminate", "Error terminating virtual memory system")
 		return err
 	}
 	// Free Virtual Pages
-	for i := 0; i < mmu.MMUConfig.NumVirtualPages; i++ {
+	pl := len(mmu.VirtualMemory)
+	for i := 0; i < pl; i++ {
 		err := mmu.FreeVirtualPage(i)
 		if err != nil {
-			RemoteLogging.LogEvent("ERROR", "VirtualMemoryTerminate", "Error freeing virtual page")
+			RemoteLogging.LogEvent("ERROR", "VirtualMemory Terminate", "Error freeing virtual page")
 		}
 	}
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryTerminate", "Virtual memory system terminated")
-	return nil
-}
-
-// MakeVirtualMemroyTable - Create the virtual emmroy table
-// Build the virtual memory table strcutures.  Returns an error
-func (mmu *MMUStruct) MakeVirtualMemoryTable() error {
-	RemoteLogging.LogEvent("INFO", "MakeVirtualMemoryTable", "Creating virtual memory table")
-	mmu.VirtualMemory = make([]VirtualPage, mmu.MMUConfig.NumVirtualPages)
-	mmu.FreeVirtualPages = list.New()
-	mmu.UsedVirtualPages = list.New()
-	mmu.FreePhysicalPages = list.New()
-	mmu.UsedPhysicalPages = list.New()
-	for i := 0; i < mmu.MMUConfig.NumVirtualPages; i++ {
-		mmu.FreeVirtualPages.PushBack(i)
-	}
-	for i := 0; i < mmu.MMUConfig.NumPhysicalPages; i++ {
-		mmu.FreePhysicalPages.PushBack(i)
-	}
-	err := mmu.MMUConfig.Swapper.Initialize()
-	if err != nil {
-		RemoteLogging.LogEvent("ERROR", "MakeVirtualMemoryTable", "Error initializing virtual memory table")
-		return err
-	}
-	RemoteLogging.LogEvent("INFO", "MakeVirtualMemoryTable", "Virtual memory table created")
 	return nil
 }
 

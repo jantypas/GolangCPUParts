@@ -63,7 +63,6 @@ func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page int) e
 
 func (s *SwapperInterface) SwapIn(pm PhysicalMemory.PhysicalMemory, page int) error {
 	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swapping in page "+string(page))
-	var buffer [SwapPageSize]byte
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "Swapper SwapIn", "Swap failed: "+err.Error())

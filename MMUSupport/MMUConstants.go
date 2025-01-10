@@ -1,6 +1,9 @@
 package MMUSupport
 
-import "container/list"
+import (
+	"GolangCPUParts/MMUSupport/PhysicalMemory"
+	"container/list"
+)
 
 const (
 	PageProtectionUserCanRead      = 0x1
@@ -38,19 +41,11 @@ const (
 	ProcessStateRunning      = 3
 )
 
-type MMUConfig struct {
-	Swapper          SwapperInterface // The swapper that swaps pages in and out from disk
-	NumVirtualPages  int              // Number of virtual memory pages
-	NumPhysicalPages int              // Number of physical memory pages
-}
-
 type MMUStruct struct {
-	MMUConfig         MMUConfig
-	PhysicalMem       []byte
-	VirtualMemory     []VirtualPage
-	FreeVirtualPages  *list.List
-	FreePhysicalPages *list.List
-	UsedVirtualPages  *list.List
-	UsedPhysicalPages *list.L
-	LRUCache          *list.List
+	VirtualMemory    []VirtualPage
+	UsedVirtualPages *list.List
+	FreeVirtualPages *list.List
+	LRUCache         *list.List
+	Swapper          SwapperInterface
+	PhysicalMemory   PhysicalMemory.PhysicalMemory
 }
