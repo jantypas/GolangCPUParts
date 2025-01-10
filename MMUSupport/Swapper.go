@@ -1,6 +1,7 @@
 package MMUSupport
 
 import (
+	"GolangCPUParts/MMUSupport/PhysicalMemory"
 	"GolangCPUParts/RemoteLogging"
 	"os"
 )
@@ -28,42 +29,51 @@ func (s *SwapperInterface) Initialize() error {
 }
 
 func (s *SwapperInterface) Terminate() error {
+	RemoteLogging.LogEvent("INFO", "Swapper Terminate", "Starting termination")
 	err := s.FileHandle.Close()
 	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Swapper Terminate", "Termination failed: "+err.Error())
 		return err
 	}
 	err = os.Remove(s.Filename)
 	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Swapper Terminate", "Termination failed: "+err.Error())
 		return err
 	}
+	RemoteLogging.LogEvent("INFO", "Swapper Terminate", "Termination completed")
 	return nil
 }
 
-func (s *SwapperInterface) SwapOut(page int) error {
-	var buffer [SwapPageSize]byte
+func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page int) error {
+	RemoteLogging.LogEvent("INFO", "Swapper SwapOut", "Swapping out page "+string(page))
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Swapper SwapOut", "Swap failed: "+err.Error())
 		return err
 	}
-	// Copy data from the phyical page
-	copy(buffer[:], s.ServingMMU.PhysicalMem[page*SwapPageSize:page*SwapPageSize+SwapPageSize])
-	_, err = s.FileHandle.Write(buffer[:])
+	// Copy data from the physical page
+	_, err = s.FileHandle.Write(pm.PhysicalPages[page].Buffer[:])
 	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Swapper SwapOut", "Swap failed: "+err.Error())
 		return err
 	}
+	RemoteLogging.LogEvent("INFO", "Swapper SwapOut", "Swap completed")
 	return nil
 }
 
-func (s *SwapperInterface) SwapIn(page int) error {
+func (s *SwapperInterface) SwapIn(pm PhysicalMemory.PhysicalMemory, page int) error {
+	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swapping in page "+string(page))
 	var buffer [SwapPageSize]byte
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Swapper SwapIn", "Swap failed: "+err.Error())
 		return err
 	}
-	_, err = s.FileHandle.Read(buffer[:])
+	_, err = s.FileHandle.Read(pm.PhysicalPages[page].Buffer[:])
 	if err != nil {
+		RemoteLogging.LogEvent("ERROR", "Swapper SwapIn", "Swap failed: "+err.Error())
 		return err
 	}
-	copy(s.ServingMMU.PhysicalMem[page*SwapPageSize:page*SwapPageSize+SwapPageSize], buffer[:])
+	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swap completed")
 	return nil
 }
