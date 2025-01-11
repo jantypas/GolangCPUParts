@@ -4,6 +4,7 @@ import (
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
+	"strconv"
 )
 
 const (
@@ -38,7 +39,9 @@ type PhysicalMemoryRegion struct {
 func PhysicalMemory_Initialize(pmr []PhysicalMemoryRegion) *PhysicalMemory {
 	RemoteLogging.LogEvent("INFO", "PhysicalMemory_Initialize", "Initializing physical memory")
 	totalSize := pmr[len(pmr)-1].EndAddress
-	RemoteLogging.LogEvent("INFO", "PhysicalMemory_Initialize", "Total size of physical memory is "+string(totalSize))
+	RemoteLogging.LogEvent("INFO",
+		"PhysicalMemory_Initialize",
+		"Total size of physical memory is "+strconv.Itoa(int(totalSize)))
 	pm := PhysicalMemory{
 		PhysicalPages: make([]PhysicalPage, totalSize),
 	}
@@ -62,7 +65,9 @@ func (pm *PhysicalMemory) Terminate() {
 }
 
 func (pm *PhysicalMemory) AllocateVirtualPages(numPage uint32) (*list.List, error) {
-	RemoteLogging.LogEvent("INFO", "AllocateVirtualPages", "Allocating "+string(numPage)+" virtual pages")
+	RemoteLogging.LogEvent("INFO",
+		"AllocateVirtualPages",
+		"Allocating "+strconv.Itoa(int(numPage))+" virtual pages")
 	if numPage > uint32(pm.FreeVirtualPages.Len()) {
 		RemoteLogging.LogEvent("ERROR", "AllocateVirtualPages", "Not enough physical free pages")
 		return &list.List{}, errors.New("Not enough physical free pages")
@@ -76,7 +81,9 @@ func (pm *PhysicalMemory) AllocateVirtualPages(numPage uint32) (*list.List, erro
 }
 
 func (pm *PhysicalMemory) ReturnVirtualPages(lst *list.List) {
-	RemoteLogging.LogEvent("INFO", "ReturnVirtualPages", "Returning "+string(lst.Len())+" virtual pages")
+	RemoteLogging.LogEvent("INFO",
+		"ReturnVirtualPages",
+		"Returning "+strconv.Itoa(lst.Len())+" virtual pages")
 	for e := lst.Front(); e != nil; e = e.Next() {
 		pm.FreeVirtualPages.PushBack(e.Value)
 		pm.UsedVirtualPages.Remove(e)
@@ -85,12 +92,18 @@ func (pm *PhysicalMemory) ReturnVirtualPages(lst *list.List) {
 }
 
 func (pm *PhysicalMemory) ReadAddress(addr uint64) (byte, error) {
-	RemoteLogging.LogEvent("INFO", "Physical ReadAddress", "Reading address "+string(addr))
+	RemoteLogging.LogEvent("INFO",
+		"Physical ReadAddress",
+		"Reading address "+strconv.Itoa(int(addr)))
 	page := addr / PageSize
 	offset := addr % PageSize
-	RemoteLogging.LogEvent("INFO", "Physical ReadAddress", "Page is "+string(page)+" and offset is "+string(offset))
+	RemoteLogging.LogEvent("INFO",
+		"Physical ReadAddress",
+		"Page is "+strconv.Itoa(int(page))+" and offset is "+strconv.Itoa(int(offset)))
 	if page >= uint64(len(pm.PhysicalPages)) {
-		RemoteLogging.LogEvent("ERROR", "Physical ReadAddress", "Invalid physical address")
+		RemoteLogging.LogEvent("ERROR",
+			"Physical ReadAddress",
+			"Invalid physical address")
 		return 0, errors.New("Invalid physical address")
 	}
 	switch pm.PhysicalPages[page].MemoryType {
@@ -112,10 +125,14 @@ func (pm *PhysicalMemory) ReadAddress(addr uint64) (byte, error) {
 }
 
 func (pm *PhysicalMemory) WriteAddress(addr uint64, data byte) error {
-	RemoteLogging.LogEvent("INFO", "Physical WriteAddress", "Reading address "+string(addr))
+	RemoteLogging.LogEvent("INFO",
+		"Physical WriteAddress",
+		"Reading address "+strconv.Itoa(int(addr)))
 	page := addr / PageSize
 	offset := addr % PageSize
-	RemoteLogging.LogEvent("INFO", "Physical WriteAddress", "Page is "+string(page)+" and offset is "+string(offset))
+	RemoteLogging.LogEvent("INFO",
+		"Physical WriteAddress",
+		"Page is "+strconv.Itoa(int(page))+" and offset is "+strconv.Itoa(int(offset)))
 	if page >= uint64(len(pm.PhysicalPages)) {
 		RemoteLogging.LogEvent("ERROR", "Physical WriteAddress", "Invalid physical address")
 		return errors.New("Invalid physical address")

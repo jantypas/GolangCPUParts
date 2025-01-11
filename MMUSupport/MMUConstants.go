@@ -1,10 +1,5 @@
 package MMUSupport
 
-import (
-	"GolangCPUParts/MMUSupport/PhysicalMemory"
-	"container/list"
-)
-
 const (
 	PageProtectionUserCanRead      = 0x1
 	PageProtectionUserCanWrite     = 0x2
@@ -40,12 +35,3 @@ const (
 	ProcessStateWaitingToRun = 2
 	ProcessStateRunning      = 3
 )
-
-type MMUStruct struct {
-	VirtualMemory    []VirtualPage
-	UsedVirtualPages *list.List
-	FreeVirtualPages *list.List
-	LRUCache         *list.List
-	Swapper          SwapperInterface
-	PhysicalMemory   PhysicalMemory.PhysicalMemory
-}

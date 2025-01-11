@@ -4,6 +4,7 @@ import (
 	"GolangCPUParts/MMUSupport/PhysicalMemory"
 	"GolangCPUParts/RemoteLogging"
 	"os"
+	"strconv"
 )
 
 const SwapPageSize = 4096
@@ -11,7 +12,6 @@ const SwapPageSize = 4096
 // SwapperInterface
 // The SwapperInterface lets us swap pages in and out of memory
 type SwapperInterface struct {
-	ServingMMU *MMUStruct
 	FileHandle *os.File
 	Filename   string
 }
@@ -45,7 +45,7 @@ func (s *SwapperInterface) Terminate() error {
 }
 
 func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page int) error {
-	RemoteLogging.LogEvent("INFO", "Swapper SwapOut", "Swapping out page "+string(page))
+	RemoteLogging.LogEvent("INFO", "Swapper SwapOut", "Swapping out page "+strconv.Itoa(int(page)))
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "Swapper SwapOut", "Swap failed: "+err.Error())
@@ -62,7 +62,7 @@ func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page int) e
 }
 
 func (s *SwapperInterface) SwapIn(pm PhysicalMemory.PhysicalMemory, page int) error {
-	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swapping in page "+string(page))
+	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swapping in page "+strconv.Itoa(page))
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "Swapper SwapIn", "Swap failed: "+err.Error())
