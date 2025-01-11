@@ -44,7 +44,7 @@ func (s *SwapperInterface) Terminate() error {
 	return nil
 }
 
-func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page int) error {
+func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page uint32) error {
 	RemoteLogging.LogEvent("INFO", "Swapper SwapOut", "Swapping out page "+strconv.Itoa(int(page)))
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
