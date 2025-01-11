@@ -66,9 +66,21 @@ func (vmc *VMContainer) AllocateVirtualPage() (uint32, error) {
 	return page, nil
 }
 
-func (vmc *VMContainer) ReturnVirtualPage(page uint32) {
+func (vmc *VMContainer) ReturnVirtualPage(page uint32) error {
 	RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Returning virtual page")
-	vmc.FreePages.PushBack(page)
-	vmc.UsedPages.Remove(vmc.UsedPages.Front())
+	if vmc.VirtualPages[page].PageFlags&MMUSupport.PageIsActive == 0 {
+		RemoteLogging.LogEvent("ERROR", "ReturnVirtualPage", "Page is not active")
+		return errors.New("Page is not active")
+	}
+	if vmc.VirtualPages[page].PageFlags&MMUSupport.PageIsOnDisk == MMUSupport.PageIsOnDisk {
+		RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Page is on disk -- no physical page to free")
+		vmc.VirtualPages[page].PageFlags &= ^MMUSupport.PageIsOnDisk
+		vmc.VirtualPages[page].PageFlags &= ^MMUSupport.PageIsActive
+		vmc.VirtualPages[page].PhysicalPage = 0
+		vmc.FreePages.PushBack(page)
+		vmc.UsedPages.Remove(vmc.UsedPages.Front())
+		return nil
+	}
 	RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Return completed")
+	return nil
 }
