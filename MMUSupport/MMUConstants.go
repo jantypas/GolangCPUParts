@@ -18,10 +18,11 @@ const (
 
 	PageSize = 4096
 
-	PageIsActive = 0x1
-	PageIsDirty  = 0x2
-	PageIsOnDisk = 0x4
-	PageIsLocked = 0x8
+	PageIsActive  = 0x1
+	PageIsDirty   = 0x2
+	PageIsOnDisk  = 0x4
+	PageIsLocked  = 0x8
+	PageAllocated = 0x10
 
 	ProtectionNeedRead    = 0x1
 	ProtectionNeedWrite   = 0x2
