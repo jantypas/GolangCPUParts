@@ -4,56 +4,48 @@ var MemoryMapTable = map[string][]PhysicalMemoryRegion{
 	"OLD-IBM-MAINFRAME": {
 		{
 			Comment:    "2MB of physical RAM",
-			StartPage:  0x0000_0000,
-			EndAddress: 0x001F_FFFF,
+			NumPages:   0x200,
 			MemoryType: MemoryTypePhysicalRAM,
 		},
 	},
 	"KAYPRO": {
 		{
 			Comment:    "64KB Physical RAM",
-			StartPage:  0x0000,
-			EndAddress: 0xFFFF,
+			NumPages:   0x10,
 			MemoryType: MemoryTypePhysicalRAM,
 		},
 	},
 	"VAX": {
 		{
 			Comment:    "64MB Virtual RAM",
-			StartPage:  0x0000_0000,
-			EndAddress: 0x03FF_FFFF,
+			NumPages:   0x4000,
 			MemoryType: MemoryTypeVirtualRAM,
 		},
 		{
 			Comment:    "16MB Physical RAM",
-			StartPage:  0x0400_0000,
-			EndAddress: 0x04FF_FFFF,
+			NumPages:   0x1000,
 			MemoryType: MemoryTypePhysicalRAM,
 		},
 	},
 	"LINUX-X64": {
 		{
 			Comment:    "4GB Virtual RAM",
-			StartPage:  0x0000_0000,
-			EndAddress: 0xFFFF_FFFF,
+			NumPages:   0x10000,
 			MemoryType: MemoryTypeVirtualRAM,
 		},
 		{
 			Comment:    "512MB IO RAM",
-			StartPage:  0x1_0000_0000,
-			EndAddress: 0x1_1FFF_0000,
+			NumPages:   0x20000,
 			MemoryType: MemoryTypeIO,
 		},
 		{
 			Comment:    "1GB ROM Space",
-			StartPage:  0x1_2000_0000,
-			EndAddress: 0x1_5FFF_FFFF,
+			NumPages:   0x40000,
 			MemoryType: MemoryTypeROM,
 		},
 		{
 			Comment:    "1GB Kernel Space",
-			StartPage:  0x1_8000_0000,
-			EndAddress: 0x1_9FFF_FFFF,
+			NumPages:   0x40000,
 			MemoryType: MemoryTypeKernel,
 		},
 	},

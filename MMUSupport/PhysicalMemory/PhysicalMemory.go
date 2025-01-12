@@ -31,8 +31,7 @@ type PhysicalMemory struct {
 
 type PhysicalMemoryRegion struct {
 	Comment    string
-	StartPage  uint64
-	EndAddress uint64
+	NumPages   uint32
 	MemoryType int
 }
 
