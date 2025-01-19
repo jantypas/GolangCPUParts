@@ -1,23 +1,21 @@
 package PhysicalMemory
 
 import (
-	"GolangCPUParts/RemoteLogging"
-	"bytes"
 	"container/list"
 	"errors"
-	"go/ast"
-	"strconv"
 )
 
 const (
 	MemoryTypeEmpty       = 0
-	MemoryTypeKernel      = 1
-	MemoryTypeIO          = 2
-	MemoryTypeROM         = 3
-	MemoryTypeVirtualRAM  = 4
-	MemoryTypePhysicalRAM = 5
-
-	PageSize = 4096
+	MemoryTypeVirtualRAM  = 1
+	MemoryTypePhysicalRAM = 2
+	MemoryTypePhysicalROM = 3
+	MemoryTypeKernelRAM   = 4
+	MemoryTypeKernelROM   = 5
+	MemoryTypeIORAM       = 6
+	MemoryTypeIOROM       = 7
+	MemoryTypeBufferRAM   = 8
+	PageSize              = 4096
 )
 
 // PhysicalPage
@@ -25,241 +23,157 @@ const (
 type PhysicalPage struct {
 	Buffer     []byte
 	MemoryType int
+	IsInUse    bool
 }
 
-// PhysicalMemory
-// The physical memory container keeps track of all our physical pages
-type PhysicalMemory struct {
-	PhysicalPages       []PhysicalPage // The pages themselves
-	VirtualPageList     *list.List     // The list of pages we can give to virtual memory
-	KernelPageList      *list.List     // The list of pages that are kernel pages
-	IOPageList          *list.List     // The list of pages for I/O
-	ROMPageList         *list.List     // The list of pages that we use for ROM
-	PhysicalRAMPageList *list.List     // Physical pages (can't be virtualized)
-	EmtpyPage           *list.List     // Empty pages
-	FreeRAMPages        *list.List     //
-	UsedRAMPages        *list.List
-}
-
-// PhysicalMemoryRegion
-// For every block of memory in a memory map, we define a region.
-// It tells use the type of memory and the number of pages for that type
 type PhysicalMemoryRegion struct {
 	Comment    string
 	NumPages   uint32
 	MemoryType int
 }
 
-// PhysicalMemory_Initialize
-// Given a memory map, creates the physical memory structure and returns a pointer to it.
-func PhysicalMemory_Initialize(mapname string) *PhysicalMemory {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemory_Initialize", "Initializing physical memory")
-	pmr, ok := MemoryMapTable[mapname]
+type PhysicalMemoryContainer struct {
+	Regions          []PhysicalMemoryRegion
+	MemoryPages      map[uint32]PhysicalPage
+	FreeVirtualPages *list.List
+	UsedVirtualPages *list.List
+}
+
+func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
+	// See if the memory map exists for this name
+	pr, ok := MemoryMapTable[name]
 	if !ok {
-		RemoteLogging.LogEvent("ERROR",
-			"PhysicalMemory_Initialize", "Unable to find memory map with name "+mapname)
-		return nil
+		return nil, errors.New("Physical Memory Region not found")
 	}
-	// Compute total page size
-	totalSize := 0
-	for i := 0; i < len(pmr); i++ {
-		totalSize += int(pmr[i].NumPages)
+	// Build teh base of the memory container
+	pmc := PhysicalMemoryContainer{
+		Regions: pr,
 	}
-	RemoteLogging.LogEvent("INFO",
-		"PhysicalMemory_Initialize",
-		"Total size of physical memory is "+strconv.Itoa(int(totalSize)))
-	// Build the page table
-	pm := PhysicalMemory{
-		PhysicalPages:       make([]PhysicalPage, totalSize),
-		VirtualPageList:     list.New(),
-		KernelPageList:      list.New(),
-		IOPageList:          list.New(),
-		ROMPageList:         list.New(),
-		PhysicalRAMPageList: list.New(),
-		FreeRAMPages:        list.New(),
-		UsedRAMPages:        list.New(),
-	}
-	// Create buffers for each non-empty page
-	currentPage := 0
-	for i := 0; i < len(pmr); i++ {
-		switch pm.PhysicalPages[i].MemoryType {
-		case MemoryTypeKernel:
-			for j := 0; j < int(pmr[i].NumPages); j++ {
-				pm.KernelPageList.PushBack(uint64(currentPage))
-				pm.PhysicalPages[currentPage].Buffer = make([]byte, PageSize)
-				pm.PhysicalPages[currentPage].MemoryType = MemoryTypeKernel
+	// For each valid memory page, put it in the page map along with its type
+	var currPage uint32 = 0
+	for reg := range pr {
+		for i := uint32(0); i < pr[reg].NumPages; i++ {
+			switch pr[currPage].MemoryType {
+			case MemoryTypeVirtualRAM:
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					Buffer:     make([]byte, PageSize),
+					MemoryType: pr[currPage].MemoryType,
+					IsInUse:    false,
+				}
+				pmc.FreeVirtualPages.PushBack(currPage)
+				break
+			case MemoryTypeKernelRAM:
+			case MemoryTypePhysicalRAM:
+			case MemoryTypeBufferRAM:
+			case MemoryTypeIORAM:
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					Buffer:     make([]byte, PageSize),
+					MemoryType: pr[currPage].MemoryType,
+				}
+				break
+			case MemoryTypeEmpty:
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: pr[currPage].MemoryType,
+				}
+				break
+			case MemoryTypePhysicalROM:
+			case MemoryTypeKernelROM:
+			case MemoryTypeIOROM:
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: pr[currPage].MemoryType,
+				}
+				break
+			default:
+				return nil, errors.New("Invalid memory type")
 			}
-			break
-		case MemoryTypeIO:
-			for j := 0; j < int(pmr[i].NumPages); j++ {
-				pm.IOPageList.PushBack(uint64(currentPage))
-				pm.PhysicalPages[currentPage].MemoryType = MemoryTypeIO
-			}
-			break
-		case MemoryTypeROM:
-			for j := 0; j < int(pmr[i].NumPages); j++ {
-				pm.ROMPageList.PushBack(uint64(currentPage))
-				pm.PhysicalPages[currentPage].Buffer = make([]byte, PageSize)
-				pm.PhysicalPages[currentPage].MemoryType = MemoryTypeROM
-			}
-			break
-		case MemoryTypeVirtualRAM:
-			for j := 0; j < int(pmr[i].NumPages); j++ {
-				pm.VirtualPageList.PushBack(uint64(currentPage))
-				pm.PhysicalPages[currentPage].Buffer = make([]byte, PageSize)
-				pm.PhysicalPages[currentPage].MemoryType = MemoryTypeVirtualRAM
-			}
-			break
-		case MemoryTypePhysicalRAM:
-			for j := 0; j < int(pmr[i].NumPages); j++ {
-				pm.PhysicalRAMPageList.PushBack(uint64(currentPage))
-				pm.PhysicalPages[currentPage].Buffer = make([]byte, PageSize)
-				pm.PhysicalPages[currentPage].MemoryType = MemoryTypePhysicalRAM
-				pm.FreeRAMPages.PushBack(uint64(currentPage))
-			}
-			break
-		case MemoryTypeEmpty:
-			for j := 0; j < int(pmr[i].NumPages); j++ {
-				pm.FreeRAMPages.PushBack(uint64(currentPage))
-				pm.PhysicalPages[currentPage].MemoryType = MemoryTypeEmpty
-			}
-			currentPage++
-			break
+			currPage++
 		}
 	}
-	RemoteLogging.LogEvent("INFO", "PhysicalMemory_Initialize", "Initialization completed")
-	return &pm
+	// Doen return the container
+	return &pmc, nil
 }
 
-// GetPages
-// Return the list of pages given a type
-func (pm *PhysicalMemory) GetPages(pagetype int) *list.List {
-	switch pagetype {
-	case MemoryTypeKernel:
-		return pm.KernelPageList
-	case MemoryTypeIO:
-		return pm.IOPageList
-	case MemoryTypeROM:
-		return pm.ROMPageList
-	case MemoryTypeVirtualRAM:
-		return pm.VirtualPageList
-	case MemoryTypePhysicalRAM:
-		return pm.PhysicalRAMPageList
-	case MemoryTypeEmpty:
+func (pmc *PhysicalMemoryContainer) Terminate() {
+	for page, val := range pmc.MemoryPages {
+		val.Buffer = nil
+		delete(pmc.MemoryPages, page)
+	}
+}
+
+func (pmc *PhysicalMemoryContainer) ReturnListOfPageType(ptype int) *list.List {
+	l := list.New()
+	for page, val := range pmc.MemoryPages {
+		if val.MemoryType == ptype {
+			l.PushBack(page)
+		}
+	}
+	return l
+}
+
+func (pmc *PhysicalMemoryContainer) ReturnTotalNumberOfPages() uint32 {
+	return uint32(len(pmc.MemoryPages))
+}
+
+func (pmc *PhysicalMemoryContainer) AllocateVirtualPage() (uint32, error) {
+	if pmc.FreeVirtualPages.Len() == 0 {
+		return 0, errors.New("No free virtual pages")
+	}
+	page := uint32(pmc.FreeVirtualPages.Remove(pmc.FreeVirtualPages.Front()).(uint32))
+	val := pmc.MemoryPages[page]
+	val.IsInUse = true
+	pmc.MemoryPages[page] = val
+	pmc.UsedVirtualPages.PushBack(page)
+	return page, nil
+}
+
+func (pmc *PhysicalMemoryContainer) ReturnVirtualPage(page uint32) error {
+	val, ok := pmc.MemoryPages[page]
+	if !ok {
+		return errors.New("Page not found")
+	}
+	if val.IsInUse == false {
+		return errors.New("Page is not in use")
+	}
+	if pmc.MemoryPages[page].MemoryType == MemoryTypeVirtualRAM {
+		pmc.FreeVirtualPages.PushBack(page)
+		pmc.UsedVirtualPages.Remove(pmc.UsedVirtualPages.Front())
+		val.IsInUse = false
+		pmc.MemoryPages[page] = val
 		return nil
 	}
+	return errors.New("Page is wrong type")
+}
+
+func (pmc *PhysicalMemoryContainer) VritualPercentFree() int {
+	return int(float64(pmc.FreeVirtualPages.Len()) / float64(pmc.ReturnTotalNumberOfPages()) * 100)
+}
+
+func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
+	page := uint32(addr / PageSize)
+	offset := addr % PageSize
+	val, ok := pmc.MemoryPages[page]
+	if !ok {
+		return 0, errors.New("Page not found")
+	}
+	if val.IsInUse == false {
+		return 0, errors.New("Page is not in use")
+	}
+	return val.Buffer[offset], nil
+}
+
+func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
+	page := uint32(addr / PageSize)
+	offset := addr % PageSize
+	val, ok := pmc.MemoryPages[page]
+	if !ok {
+		return errors.New("Page not found")
+	}
+	if val.IsInUse == false {
+		return errors.New("Page is not in use")
+	}
+	buffer := pmc.MemoryPages[page].Buffer
+	buffer[offset] = data
+	val.Buffer = buffer
+	pmc.MemoryPages[page] = val
 	return nil
-}
-
-// Terminate
-// Terminate the physical memory system
-func (pm *PhysicalMemory) Terminate() {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemory_Terminate", "Terminating physical memory")
-	for i := 0; i < len(pm.PhysicalPages); i++ {
-		if pm.PhysicalPages[i].MemoryType != MemoryTypeEmpty {
-			pm.PhysicalPages[i].Buffer = nil
-		}
-		pm.IOPageList = nil
-		pm.KernelPageList = nil
-		pm.ROMPageList = nil
-		pm.PhysicalRAMPageList = nil
-		pm.FreeRAMPages = nil
-		pm.UsedRAMPages = nil
-		pm.VirtualPageList = nil
-		pm.PhysicalPages = nil
-	}
-	RemoteLogging.LogEvent("INFO", "PhysicalMemory_Terminate", "Termination completed")
-}
-
-func (pm *PhysicalMemory) AllocateVirtualPages(numPage uint32) (*list.List, error) {
-	RemoteLogging.LogEvent("INFO",
-		"AllocateVirtualPages",
-		"Allocating "+strconv.Itoa(int(numPage))+" virtual pages")
-	if numPage > uint32(pm.FreeVirtualPages.Len()) {
-		RemoteLogging.LogEvent("ERROR", "AllocateVirtualPages", "Not enough physical free pages")
-		return &list.List{}, errors.New("Not enough physical free pages")
-	}
-	lst := list.New()
-	for i := 0; i < int(numPage); i++ {
-		lst.PushBack(pm.FreeVirtualPages.Remove(pm.FreeVirtualPages.Front()).(uint64))
-	}
-	RemoteLogging.LogEvent("INFO", "AllocateVirtualPages", "Allocation completed")
-	return lst, nil
-}
-
-func (pm *PhysicalMemory) ReturnVirtualPages(lst *list.List) {
-	RemoteLogging.LogEvent("INFO",
-		"ReturnVirtualPages",
-		"Returning "+strconv.Itoa(lst.Len())+" virtual pages")
-	for e := lst.Front(); e != nil; e = e.Next() {
-		pm.FreeVirtualPages.PushBack(e.Value)
-		pm.UsedVirtualPages.Remove(e)
-	}
-	RemoteLogging.LogEvent("INFO", "ReturnVirtualPages", "Return completed")
-}
-
-func (pm *PhysicalMemory) ReadAddress(addr uint64) (byte, error) {
-	RemoteLogging.LogEvent("INFO",
-		"Physical ReadAddress",
-		"Reading address "+strconv.Itoa(int(addr)))
-	page := addr / PageSize
-	offset := addr % PageSize
-	RemoteLogging.LogEvent("INFO",
-		"Physical ReadAddress",
-		"Page is "+strconv.Itoa(int(page))+" and offset is "+strconv.Itoa(int(offset)))
-	if page >= uint64(len(pm.PhysicalPages)) {
-		RemoteLogging.LogEvent("ERROR",
-			"Physical ReadAddress",
-			"Invalid physical address")
-		return 0, errors.New("Invalid physical address")
-	}
-	switch pm.PhysicalPages[page].MemoryType {
-	case MemoryTypeIO:
-		RemoteLogging.LogEvent("INFO", "Physical ReadAddress", "Reading from IO not implemented")
-		return 0, errors.New("Reading from IO not implemented")
-	case MemoryTypeROM:
-	case MemoryTypeVirtualRAM:
-	case MemoryTypePhysicalRAM:
-	case MemoryTypeKernel:
-		RemoteLogging.LogEvent("INFO", "Physical ReadAddress", "Reading from kernel not implemented")
-		return pm.PhysicalPages[page].Buffer[offset], nil
-	case MemoryTypeEmpty:
-		RemoteLogging.LogEvent("ERROR", "Physical eadAddress", "Reading from empty memory")
-		return 0, errors.New("Reading from empty memory")
-	}
-	RemoteLogging.LogEvent("ERROR", "Physical ReadAddress", "Unknown memory type")
-	return 0, errors.New("Unknown memory type")
-}
-
-func (pm *PhysicalMemory) WriteAddress(addr uint64, data byte) error {
-	RemoteLogging.LogEvent("INFO",
-		"Physical WriteAddress",
-		"Reading address "+strconv.Itoa(int(addr)))
-	page := addr / PageSize
-	offset := addr % PageSize
-	RemoteLogging.LogEvent("INFO",
-		"Physical WriteAddress",
-		"Page is "+strconv.Itoa(int(page))+" and offset is "+strconv.Itoa(int(offset)))
-	if page >= uint64(len(pm.PhysicalPages)) {
-		RemoteLogging.LogEvent("ERROR", "Physical WriteAddress", "Invalid physical address")
-		return errors.New("Invalid physical address")
-	}
-	switch pm.PhysicalPages[page].MemoryType {
-	case MemoryTypeIO:
-		RemoteLogging.LogEvent("INFO", "Physical WriteAddress", "Reading from IO not implemented")
-		return errors.New("Reading from IO not implemented")
-	case MemoryTypeROM:
-		RemoteLogging.LogEvent("ERROR", "Physical WriteAddress", "Can't write to ROM")
-		return errors.New("Can't write to ROM")
-	case MemoryTypeVirtualRAM:
-	case MemoryTypePhysicalRAM:
-	case MemoryTypeKernel:
-		RemoteLogging.LogEvent("INFO", "Physical WriteAddress", "Writing completed")
-		return nil
-	case MemoryTypeEmpty:
-		RemoteLogging.LogEvent("ERROR", "WriteAddress", "Writing to empty memory")
-		return errors.New("Reading from empty memory")
-	}
-	RemoteLogging.LogEvent("ERROR", "WriteAddress", "Unknown memory type")
-	return errors.New("Unknown memory type")
 }
