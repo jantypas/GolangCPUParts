@@ -1,16 +1,17 @@
 package PhysicalMemory
 
 const (
-	MemoryTypeEmpty       = 0
-	MemoryTypeVirtualRAM  = 1
-	MemoryTypePhysicalRAM = 2
-	MemoryTypePhysicalROM = 3
-	MemoryTypeKernelRAM   = 4
-	MemoryTypeKernelROM   = 5
-	MemoryTypeIORAM       = 6
-	MemoryTypeIOROM       = 7
-	MemoryTypeBufferRAM   = 8
-	PageSize              = 4096
+	MemoryTypeEmpty       = 0x0001
+	MemoryTypeVirtualRAM  = 0x0002
+	MemoryTypePhysicalRAM = 0x0004
+	MemoryTypePhysicalROM = 0x0008
+	MemoryTypeKernelRAM   = 0x0010
+	MemoryTypeKernelROM   = 0x0020
+	MemoryTypeIORAM       = 0x0040
+	MemoryTypeIOROM       = 0x0080
+	MemoryTypeBufferRAM   = 0x0100
+
+	PageSize = 4096
 )
 
 type PhysicalMemoryRegion struct {

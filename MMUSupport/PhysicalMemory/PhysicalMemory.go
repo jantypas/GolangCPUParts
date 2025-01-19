@@ -1,6 +1,7 @@
 package PhysicalMemory
 
 import (
+	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
 )
@@ -13,17 +14,29 @@ type PhysicalPage struct {
 	IsInUse    bool
 }
 
+// PhysicalMemoryContainer
+// For all of our physical memory regions, we keep the data in this container
 type PhysicalMemoryContainer struct {
-	Regions          []PhysicalMemoryRegion
-	MemoryPages      map[uint32]PhysicalPage
-	FreeVirtualPages *list.List
+	Regions          []PhysicalMemoryRegion  // Our memory map
+	MemoryPages      map[uint32]PhysicalPage // THe pages themselves
+	FreeVirtualPages *list.List              // Vitual page lists
 	UsedVirtualPages *list.List
 }
 
+// PhysicalMemory_Initialize
+// initializes a physical memory container for a specified name.
+// It retrieves the memory map, validates it, and populates physical pages based on their memory types.
+// Returns a pointer to a PhysicalMemoryContainer and an error if initialization fails.
 func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
+	RemoteLogging.LogEvent("INFO",
+		"PhysicalMemory_Initialize",
+		"Setting yp physical memory")
 	// See if the memory map exists for this name
 	pr, ok := MemoryMapTable[name]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR",
+			"PhysicalMemory_Initialize",
+			"Physical Memory map name not found")
 		return nil, errors.New("Physical Memory Region not found")
 	}
 	// Build teh base of the memory container
@@ -65,16 +78,28 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 				}
 				break
 			default:
+				RemoteLogging.LogEvent("ERROR",
+					"PhysicalMemory_Initialize",
+					"Invalid memory type")
 				return nil, errors.New("Invalid memory type")
 			}
 			currPage++
 		}
 	}
-	// Doen return the container
+	// Done - return the container
+	RemoteLogging.LogEvent("INFO",
+		"PhysicalMemory_Initialize",
+		"Physical memory initialized")
 	return &pmc, nil
 }
 
+// Terminate
+// Releases all memory pages in the container by clearing their buffers and removing them from the map.
+// It also logs the termination event using the RemoteLogging system.
 func (pmc *PhysicalMemoryContainer) Terminate() {
+	RemoteLogging.LogEvent("INFO",
+		"PhysicalMemory_Terminate",
+		"Terminating physical memory")
 	for page, val := range pmc.MemoryPages {
 		val.Buffer = nil
 		delete(pmc.MemoryPages, page)
@@ -292,4 +317,8 @@ func (pmc *PhysicalMemoryContainer) ReturnNVirtualPage(l *list.List) error {
 		}
 	}
 	return nil
+}
+
+func (pmc *PhysicalMemoryContainer) ReturnMemoryMap() []PhysicalMemoryRegion {
+	return pmc.Regions
 }
