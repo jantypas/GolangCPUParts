@@ -258,3 +258,38 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 	}
 	return nil, errors.New("Page is wrong type")
 }
+
+func (pmc *PhysicalMemoryContainer) NumberOfFreeVirtualPages() uint32 {
+	return uint32(pmc.FreeVirtualPages.Len())
+}
+
+func (pmc *PhysicalMemoryContainer) NumberOfUsedVirtualPages() uint32 {
+	return uint32(pmc.UsedVirtualPages.Len())
+}
+
+func (pmc *PhysicalMemoryContainer) AllocateNVirtualPage(num uint32) (*list.List, error) {
+	l := list.New()
+	if pmc.NumberOfFreeVirtualPages() < num {
+		return nil, errors.New("Not enough free pages")
+	}
+	for i := uint32(0); i < num; i++ {
+		page, err := pmc.AllocateVirtualPage()
+		if err != nil {
+			return nil, err
+		} else {
+			l.PushBack(page)
+		}
+	}
+	return l, nil
+}
+
+func (pmc *PhysicalMemoryContainer) ReturnNVirtualPage(l *list.List) error {
+	for e := l.Front(); e != nil; e = e.Next() {
+		page := e.Value.(uint32)
+		err := pmc.ReturnVirtualPage(page)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
