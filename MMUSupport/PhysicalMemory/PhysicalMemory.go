@@ -164,18 +164,20 @@ func (pmc *PhysicalMemoryContainer) ReturnVirtualPage(page uint32) error {
 		"Returning virtual page "+strconv.Itoa(int(page)))
 	val, ok := pmc.MemoryPages[page]
 	if !ok {
+		// Can't find the page
 		RemoteLogging.LogEvent("ERROR",
 			"Physical_ReturnVirtualPage",
 			"Page not found")
 		return errors.New("Page not found")
 	}
 	if val.IsInUse == false {
-
+		// Page is not in use-- we can't do this
 		RemoteLogging.LogEvent("ERROR",
 			"Physical_ReturnVirtualPage",
 			"Page is not in use")
 		return errors.New("Page is not in use")
 	}
+	// Free the old page
 	if pmc.MemoryPages[page].MemoryType == MemoryTypeVirtualRAM {
 		pmc.FreeVirtualPages.PushBack(page)
 		pmc.UsedVirtualPages.Remove(pmc.UsedVirtualPages.Front())
@@ -185,12 +187,15 @@ func (pmc *PhysicalMemoryContainer) ReturnVirtualPage(page uint32) error {
 			"Returned virtual page "+strconv.Itoa(int(page))+"")
 		return nil
 	}
+	// Done
 	RemoteLogging.LogEvent("ERROR",
 		"Physical_ReturnVirtualPage",
 		"Page is not of type "+strconv.Itoa(int(MemoryTypeVirtualRAM))+"")
 	return errors.New("Page is not of type " + strconv.Itoa(int(MemoryTypeVirtualRAM)))
 }
 
+// VirtualPercentFree
+// Calculates the percentage of free virtual memory pages in the memory container.
 func (pmc *PhysicalMemoryContainer) VirtualPercentFree() int {
 	RemoteLogging.LogEvent("INFO",
 		"Physical_VirtualPercentFree",
@@ -198,14 +203,22 @@ func (pmc *PhysicalMemoryContainer) VirtualPercentFree() int {
 	return int(float64(pmc.FreeVirtualPages.Len()) / float64(pmc.ReturnTotalNumberOfPages()) * 100)
 }
 
+// ReadAddress
+// Retrieves the byte stored at the given virtual address and returns an error if access fails.
 func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 	page := uint32(addr / PageSize)
 	offset := addr % PageSize
 	val, ok := pmc.MemoryPages[page]
 	if !ok {
+		// Page not found
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_ReadAddress",
+			"Page not found")
 		return 0, errors.New("Page not found")
 	}
 	if val.IsInUse == false {
+		RemoteLogging.LogEvent("ERROR", "Physical_ReadAddress",
+			"Page is not in use")
 		return 0, errors.New("Page is not in use")
 	}
 	switch val.MemoryType {
@@ -215,26 +228,57 @@ func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 	case MemoryTypePhysicalROM:
 	case MemoryTypeKernelRAM:
 	case MemoryTypeKernelROM:
+
+		RemoteLogging.LogEvent("INFO", "Physical_ReadAddress",
+			"Read complete")
 		return val.Buffer[offset], nil
 	case MemoryTypeIORAM:
 	case MemoryTypeIOROM:
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_ReadAddress",
+			"I/O not implemented")
 		return 0, errors.New("I/O not implemented")
 	case MemoryTypeEmpty:
+		RemoteLogging.LogEvent(
+			"ERROR",
+			"Physical_ReadAddress",
+			"Page is empty")
 		return 0, errors.New("Page is empty")
 	default:
+		RemoteLogging.LogEvent(
+			"ERROR",
+			"Physical_ReadAddress",
+			"Page is wrong type")
 		return 0, errors.New("Page is wrong type")
 	}
+	RemoteLogging.LogEvent("ERROR",
+		"Physical_ReadAddress", "Page is wrong type")
 	return 0, errors.New("Page is wrong type")
 }
 
+// WriteAddress
+// Writes a byte of data to the specified memory address within the physical memory container.
+// It identifies the corresponding memory page, validates its state, and ensures it is writable.
+// Returns an error if the page is not found, not in use, read-only, or of the wrong type.
 func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
+	RemoteLogging.LogEvent("INFO",
+		"Physical_WriteAddress",
+		"Writing address "+strconv.Itoa(int(addr))+" to "+strconv.Itoa(int(data))+"")
 	page := uint32(addr / PageSize)
 	offset := addr % PageSize
 	val, ok := pmc.MemoryPages[page]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_WriteAddress",
+			"Page not found")
 		return errors.New("Page not found")
 	}
 	if val.IsInUse == false {
+
+		RemoteLogging.LogEvent(
+			"ERROR",
+			"Physical_WriteAddress",
+			"Page is not in use")
 		return errors.New("Page is not in use")
 	}
 	switch val.MemoryType {
@@ -245,16 +289,26 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 		val := pmc.MemoryPages[page]
 		val.Buffer[offset] = data
 		pmc.MemoryPages[page] = val
+		RemoteLogging.LogEvent("INFO",
+			"Physical_WriteAddress",
+			"Write address completed")
 		return nil
 	case MemoryTypePhysicalROM:
 	case MemoryTypeKernelROM:
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_WriteAddress", "Page is read only")
 		return errors.New("Page is read only")
 	case MemoryTypeIORAM:
 	case MemoryTypeIOROM:
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_WriteAddress", "I/O not implemented")
 		return errors.New("I/O not implemented")
 	case MemoryTypeEmpty:
+		RemoteLogging.LogEvent(
+			"ERROR", "Physical_WriteAddress", "Page is empty")
 		return errors.New("Page is empty")
 	}
+	RemoteLogging.LogEvent("ERROR", "Physical_WriteAddress", "Page is wrong type")
 	return errors.New("Page is wrong type")
 }
 
