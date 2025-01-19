@@ -4,6 +4,7 @@ import (
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
+	"strconv"
 )
 
 // PhysicalPage
@@ -106,38 +107,73 @@ func (pmc *PhysicalMemoryContainer) Terminate() {
 	}
 }
 
+// ReturnListOfPageType
+// Given a page type, iterates over memory pages and returns a list of pages matching the specified memory type.
 func (pmc *PhysicalMemoryContainer) ReturnListOfPageType(ptype int) *list.List {
+	RemoteLogging.LogEvent("INFO",
+		"Physical_ReturnListOfPages",
+		"Return a page list of type "+strconv.Itoa(ptype)+"")
 	l := list.New()
 	for page, val := range pmc.MemoryPages {
 		if val.MemoryType == ptype {
 			l.PushBack(page)
 		}
 	}
+	RemoteLogging.LogEvent(
+		"INFO",
+		"Physical_ReturnListOfPages",
+		"Returning list of "+strconv.Itoa(l.Len())+" pages of type "+strconv.Itoa(ptype)+"")
 	return l
 }
 
+// ReturnTotalNumberOfPages
+// Returns the total number of memory pages available in the PhysicalMemoryContainer.
 func (pmc *PhysicalMemoryContainer) ReturnTotalNumberOfPages() uint32 {
-	return uint32(len(pmc.MemoryPages))
+	num := uint32(len(pmc.MemoryPages))
+	RemoteLogging.LogEvent("INFO", "Physical_ReturnTotalNumberOfPages",
+		"Returning total "+strconv.Itoa(int(num))+" pages")
+	return num
 }
 
+// AllocateVirtualPage
+// Reserves a free virtual memory page and marks it as in use, returning the page number or an error.
 func (pmc *PhysicalMemoryContainer) AllocateVirtualPage() (uint32, error) {
+	RemoteLogging.LogEvent("INFO", "Physical_AllocateVirtualPage", "Allocating virtual page")
 	if pmc.FreeVirtualPages.Len() == 0 {
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_AllocateVirtualPage", "No free pages")
 		return 0, errors.New("No free virtual pages")
 	}
-	page := uint32(pmc.FreeVirtualPages.Remove(pmc.FreeVirtualPages.Front()).(uint32))
+	page := pmc.FreeVirtualPages.Remove(pmc.FreeVirtualPages.Front()).(uint32)
 	val := pmc.MemoryPages[page]
 	val.IsInUse = true
 	pmc.MemoryPages[page] = val
 	pmc.UsedVirtualPages.PushBack(page)
+	RemoteLogging.LogEvent("INFO",
+		"Physical_AllocateVirtualPage",
+		"Allocated virtual page "+strconv.Itoa(int(page))+"")
 	return page, nil
 }
 
+// ReturnVirtualPage
+// Releases a virtual memory page back to the free pool and validates the page type and usage state.
+// Returns an error if the page is not found, not in use, or not of the correct type (MemoryTypeVirtualRAM).
 func (pmc *PhysicalMemoryContainer) ReturnVirtualPage(page uint32) error {
+	RemoteLogging.LogEvent("INFO",
+		"Physical_ReturnVirtualPage",
+		"Returning virtual page "+strconv.Itoa(int(page)))
 	val, ok := pmc.MemoryPages[page]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_ReturnVirtualPage",
+			"Page not found")
 		return errors.New("Page not found")
 	}
 	if val.IsInUse == false {
+
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_ReturnVirtualPage",
+			"Page is not in use")
 		return errors.New("Page is not in use")
 	}
 	if pmc.MemoryPages[page].MemoryType == MemoryTypeVirtualRAM {
@@ -145,12 +181,20 @@ func (pmc *PhysicalMemoryContainer) ReturnVirtualPage(page uint32) error {
 		pmc.UsedVirtualPages.Remove(pmc.UsedVirtualPages.Front())
 		val.IsInUse = false
 		pmc.MemoryPages[page] = val
+		RemoteLogging.LogEvent("INFO", "Physical_ReturnVirtualPage",
+			"Returned virtual page "+strconv.Itoa(int(page))+"")
 		return nil
 	}
-	return errors.New("Page is wrong type")
+	RemoteLogging.LogEvent("ERROR",
+		"Physical_ReturnVirtualPage",
+		"Page is not of type "+strconv.Itoa(int(MemoryTypeVirtualRAM))+"")
+	return errors.New("Page is not of type " + strconv.Itoa(int(MemoryTypeVirtualRAM)))
 }
 
-func (pmc *PhysicalMemoryContainer) VritualPercentFree() int {
+func (pmc *PhysicalMemoryContainer) VirtualPercentFree() int {
+	RemoteLogging.LogEvent("INFO",
+		"Physical_VirtualPercentFree",
+		"Calculating virtual percent free")
 	return int(float64(pmc.FreeVirtualPages.Len()) / float64(pmc.ReturnTotalNumberOfPages()) * 100)
 }
 
@@ -319,6 +363,9 @@ func (pmc *PhysicalMemoryContainer) ReturnNVirtualPage(l *list.List) error {
 	return nil
 }
 
+// ReturnMemoryMap
+// Returns the memory map consisting of all physical memory regions contained in the PhysicalMemoryContainer.
 func (pmc *PhysicalMemoryContainer) ReturnMemoryMap() []PhysicalMemoryRegion {
+	RemoteLogging.LogEvent("INFO", "Physical_ReturnMemoryMap", "Returning memory map")
 	return pmc.Regions
 }
