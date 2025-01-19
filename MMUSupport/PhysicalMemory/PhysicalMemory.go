@@ -158,6 +158,22 @@ func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 	if val.IsInUse == false {
 		return 0, errors.New("Page is not in use")
 	}
+	switch val.MemoryType {
+	case MemoryTypeVirtualRAM:
+	case MemoryTypePhysicalRAM:
+	case MemoryTypeBufferRAM:
+	case MemoryTypePhysicalROM:
+	case MemoryTypeKernelRAM:
+	case MemoryTypeKernelROM:
+		return 0, errors.New("Page is wrong type")
+	case MemoryTypeIORAM:
+	case MemoryTypeIOROM:
+		return 0, errors.New("I/O not implemented")
+	case MemoryTypeEmpty:
+		return 0, errors.New("Page is empty")
+	default:
+		return 0, errors.New("Page is wrong type")
+	}
 	return val.Buffer[offset], nil
 }
 
@@ -171,9 +187,23 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 	if val.IsInUse == false {
 		return errors.New("Page is not in use")
 	}
-	buffer := pmc.MemoryPages[page].Buffer
-	buffer[offset] = data
-	val.Buffer = buffer
-	pmc.MemoryPages[page] = val
-	return nil
+	switch val.MemoryType {
+	case MemoryTypeVirtualRAM:
+	case MemoryTypePhysicalRAM:
+	case MemoryTypeBufferRAM:
+	case MemoryTypeKernelRAM:
+		val := pmc.MemoryPages[page]
+		val.Buffer[offset] = data
+		pmc.MemoryPages[page] = val
+		return nil
+	case MemoryTypePhysicalROM:
+	case MemoryTypeKernelROM:
+		return errors.New("Page is read only")
+	case MemoryTypeIORAM:
+	case MemoryTypeIOROM:
+		return errors.New("I/O not implemented")
+	case MemoryTypeEmpty:
+		return errors.New("Page is empty")
+	}
+	return errors.New("Page is wrong type")
 }
