@@ -5,31 +5,12 @@ import (
 	"errors"
 )
 
-const (
-	MemoryTypeEmpty       = 0
-	MemoryTypeVirtualRAM  = 1
-	MemoryTypePhysicalRAM = 2
-	MemoryTypePhysicalROM = 3
-	MemoryTypeKernelRAM   = 4
-	MemoryTypeKernelROM   = 5
-	MemoryTypeIORAM       = 6
-	MemoryTypeIOROM       = 7
-	MemoryTypeBufferRAM   = 8
-	PageSize              = 4096
-)
-
 // PhysicalPage
 // For every physical page we manage, we keep one of these structures
 type PhysicalPage struct {
 	Buffer     []byte
 	MemoryType int
 	IsInUse    bool
-}
-
-type PhysicalMemoryRegion struct {
-	Comment    string
-	NumPages   uint32
-	MemoryType int
 }
 
 type PhysicalMemoryContainer struct {
@@ -245,19 +226,19 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 	if val.IsInUse == false {
 		return nil, errors.New("Page is not in use")
 	}
-	val, ok := pmc.MemoryPages[page]
+	val, ok = pmc.MemoryPages[page]
 	if !ok {
-		return 0, errors.New("Page not found")
+		return nil, errors.New("Page not found")
 	}
 	if val.IsInUse == false {
-		return 0, errors.New("Page is not in use")
+		return nil, errors.New("Page is not in use")
 	}
-	val, ok := pmc.MemoryPages[page]
+	val, ok = pmc.MemoryPages[page]
 	if !ok {
-		return 0, errors.New("Page not found")
+		return nil, errors.New("Page not found")
 	}
 	if val.IsInUse == false {
-		return 0, errors.New("Page is not in use")
+		return nil, errors.New("Page is not in use")
 	}
 	switch val.MemoryType {
 	case MemoryTypeVirtualRAM:
@@ -269,11 +250,11 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 		return val.Buffer, nil
 	case MemoryTypeIORAM:
 	case MemoryTypeIOROM:
-		return 0, errors.New("I/O not implemented")
+		return nil, errors.New("I/O not implemented")
 	case MemoryTypeEmpty:
-		return 0, errors.New("Page is empty")
+		return nil, errors.New("Page is empty")
 	default:
-		return 0, errors.New("Page is wrong type")
+		return nil, errors.New("Page is wrong type")
 	}
 	return nil, errors.New("Page is wrong type")
 }

@@ -1,5 +1,24 @@
 package PhysicalMemory
 
+const (
+	MemoryTypeEmpty       = 0
+	MemoryTypeVirtualRAM  = 1
+	MemoryTypePhysicalRAM = 2
+	MemoryTypePhysicalROM = 3
+	MemoryTypeKernelRAM   = 4
+	MemoryTypeKernelROM   = 5
+	MemoryTypeIORAM       = 6
+	MemoryTypeIOROM       = 7
+	MemoryTypeBufferRAM   = 8
+	PageSize              = 4096
+)
+
+type PhysicalMemoryRegion struct {
+	Comment    string
+	NumPages   uint32
+	MemoryType int
+}
+
 var MemoryMapTable = map[string][]PhysicalMemoryRegion{
 	"OLD-IBM-MAINFRAME": {
 		{
