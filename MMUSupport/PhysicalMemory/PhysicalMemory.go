@@ -63,7 +63,7 @@ type PhysicalMemoryContainer struct {
 func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 	RemoteLogging.LogEvent("INFO",
 		"PhysicalMemory_Initialize",
-		"Setting yp physical memory")
+		"Setting up physical memory")
 	// See if the memory map exists for this name
 	pr, ok := MemoryMapTable[name]
 	if !ok {
