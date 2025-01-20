@@ -1,4 +1,4 @@
-package Processes
+package ProcessMemory
 
 import (
 	"time"

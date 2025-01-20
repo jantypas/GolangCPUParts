@@ -39,3 +39,14 @@ func TestTerminate(t *testing.T) {
 		fmt.Println("Page " + strconv.Itoa(i) + " type " + MemoryTypeNames[t])
 	}
 }
+
+func TestPhysicalMemoryContainer_AllocateVirtualPage(t *testing.T) {
+	RemoteLogging.LogInit("TEST")
+	pmc, err := PhysicalMemory_Initialize("TEST")
+	if err != nil {
+		t.Errorf("PhysicalMemory_Initialize() error = %v", err)
+		return
+	}
+	if pmc == nil {
+	}
+}
