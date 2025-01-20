@@ -44,11 +44,11 @@ func LogInit(appname string) error {
 					s, _ = json.Marshal(msg)
 				} else {
 					s = []byte(fmt.Sprintf(
-						`Message_number": %d
-	Event Time: %s
-	Event App: %s
-	Event Level: %s
-	Event Source: %s
+						`Message Number: %d
+	Event Time   : %s
+	Event App    : %s
+	Event Level  : %s
+	Event Source : %s
 	Event Message: %s`, msg.MessageNumber,
 						msg.EventTime,
 						msg.EventApp,
