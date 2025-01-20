@@ -48,5 +48,22 @@ func TestPhysicalMemoryContainer_AllocateVirtualPage(t *testing.T) {
 		return
 	}
 	if pmc == nil {
+		t.Errorf("PhysicalMemory_Initialize() pmc = %v", pmc)
+	}
+	page, err := pmc.AllocateVirtualPage()
+	if err != nil {
+		t.Errorf("AllocateVirtualPage() error = %v", err)
+		return
+	}
+	for i := 0; i < 10; i++ {
+		page, err = pmc.AllocateVirtualPage()
+		if err != nil {
+			if err.Error() != "No free virtual pages" {
+				t.Errorf("AllocateVirtualPage() error = %v", err)
+				return
+			}
+		} else {
+			fmt.Println("Page " + strconv.Itoa(int(page)) + " allocated")
+		}
 	}
 }
