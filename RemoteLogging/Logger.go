@@ -12,7 +12,7 @@ var logChannel chan LogEventStruct
 var logApp string
 var loggingActive bool = true
 var logCount = 0
-var logNoJson = false
+var logJson = false
 
 type LogEventStruct struct {
 	MessageNumber int    `json:"message_number"`
@@ -24,6 +24,7 @@ type LogEventStruct struct {
 }
 
 func LogInit(appname string) error {
+	logCount = 0
 	f, err := os.OpenFile("/tmp/"+appname+".log", os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		fmt.Println("Error opening log file")
@@ -35,12 +36,11 @@ func LogInit(appname string) error {
 		go func() {
 			for {
 				msg := <-logChannel
-				logCount++
 				msg.MessageNumber = logCount
 				msg.EventApp = logApp
 				msg.EventTime = time.Now().Format("2006-01-02 15:04:05")
 				s := []byte("")
-				if logNoJson {
+				if logJson {
 					s, _ = json.Marshal(msg)
 				} else {
 					s = []byte(fmt.Sprintf(
@@ -71,6 +71,7 @@ func SetLogginActive(state bool) {
 
 func LogEvent(level string, source string, msg string) {
 	if loggingActive {
+		logCount++
 		msg := LogEventStruct{
 			EventTime:   time.Now().Format("2006-01-02 15:04:05"),
 			EventLevel:  level,

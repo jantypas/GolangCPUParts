@@ -71,9 +71,29 @@ var MemoryMapTable = map[string][]PhysicalMemoryRegion{
 			MemoryType: MemoryTypeIORAM,
 		},
 		{
+			Comment:    "1MB Buffer RAM",
+			NumPages:   4,
+			MemoryType: MemoryTypeBufferRAM,
+		},
+		{
 			Comment:    "1MB Physical ROM",
 			NumPages:   4,
 			MemoryType: MemoryTypePhysicalROM,
+		},
+		{
+			Comment:    "1MB Empty space",
+			NumPages:   4,
+			MemoryType: MemoryTypeEmpty,
+		},
+		{
+			Comment:    "1MB Kernel ROM",
+			NumPages:   4,
+			MemoryType: MemoryTypeKernelROM,
+		},
+		{
+			Comment:    "1MB IO ROM",
+			NumPages:   4,
+			MemoryType: MemoryTypeIOROM,
 		},
 	},
 }
