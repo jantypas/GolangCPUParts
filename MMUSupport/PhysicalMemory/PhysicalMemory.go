@@ -47,7 +47,7 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 		MemoryPages: make(map[uint32]PhysicalPage),
 	}
 	// For each valid memory page, put it in the page map along with its type
-	var currPage uint32 = 9
+	var currPage uint32 = 0
 	var i uint32 = 0
 	for _, xp := range pr {
 		fmt.Printf("Segment " + xp.Comment + " has " + strconv.Itoa(int(xp.NumPages)) + " pages\n")
@@ -61,6 +61,7 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 					IsInUse:    false,
 				}
 				pmc.FreeVirtualPages.PushBack(currPage)
+				fmt.Print("Page " + strconv.Itoa(int(currPage)) + "\n")
 				currPage++
 			}
 			break
@@ -72,8 +73,8 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 					MemoryType: xp.MemoryType,
 					Buffer:     make([]byte, PageSize),
 				}
+				currPage++
 			}
-			currPage += xp.NumPages
 			break
 		case MemoryTypeIORAM:
 		case MemoryTypeEmpty:
@@ -84,8 +85,8 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
 				}
+				currPage++
 			}
-			currPage += xp.NumPages
 			break
 		default:
 		}
