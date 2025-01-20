@@ -4,7 +4,6 @@ import (
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -84,10 +83,8 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 	lpr := len(pr)
 	for idx := 0; idx < lpr; idx++ {
 		xp := pr[idx]
-		fmt.Printf("Segment " + xp.Comment + " has " + strconv.Itoa(int(xp.NumPages)) + " pages\n")
 		switch xp.MemoryType {
 		case MemoryTypeVirtualRAM:
-			fmt.Println("Processing virtual RAM")
 			pmc.FreeVirtualPages = list.New()
 			pmc.UsedVirtualPages = list.New()
 			for i = 0; i < xp.NumPages; i++ {
@@ -97,12 +94,10 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 					Buffer:     make([]byte, PageSize),
 				}
 				pmc.FreeVirtualPages.PushBack(currPage)
-				fmt.Print("Page " + strconv.Itoa(int(currPage)) + "\n")
 				currPage++
 			}
 			continue
 		case MemoryTypeKernelRAM:
-			fmt.Println("Processing kernel RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -112,18 +107,15 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 			}
 			continue
 		case MemoryTypePhysicalRAM:
-			fmt.Println("Processing physical RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
 					Buffer:     make([]byte, PageSize),
 				}
-				fmt.Print("Page " + strconv.Itoa(int(currPage)) + "\n")
 				currPage++
 			}
 			continue
 		case MemoryTypeBufferRAM:
-			fmt.Println("Processing buffer RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -133,7 +125,6 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 			}
 			continue
 		case MemoryTypeIORAM:
-			fmt.Println("Processing I/O RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -142,7 +133,6 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 			}
 			continue
 		case MemoryTypeEmpty:
-			fmt.Println("Processing empty RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -151,7 +141,6 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 			}
 			continue
 		case MemoryTypePhysicalROM:
-			fmt.Println("Processing physical ROM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -160,7 +149,6 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 			}
 			continue
 		case MemoryTypeKernelROM:
-			fmt.Println("Processing kernel ROM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -169,7 +157,6 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 			}
 			continue
 		case MemoryTypeIOROM:
-			fmt.Println("Processing I/O ROM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
