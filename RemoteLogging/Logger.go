@@ -45,11 +45,11 @@ func LogInit(appname string) error {
 				} else {
 					s = []byte(fmt.Sprintf(
 						`Message_number": %d
-	event_time: %s
-	event_app: %s
-	event_level: %s
-	event_source: %s
-	event_msg: %s`, msg.MessageNumber,
+	Event Time: %s
+	Event App: %s
+	Event Level: %s
+	Event Source: %s
+	Event Message: %s`, msg.MessageNumber,
 						msg.EventTime,
 						msg.EventApp,
 						msg.EventLevel,
