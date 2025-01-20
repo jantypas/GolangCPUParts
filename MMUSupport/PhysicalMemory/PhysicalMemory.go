@@ -4,6 +4,7 @@ import (
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -42,55 +43,57 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 	}
 	// Build teh base of the memory container
 	pmc := PhysicalMemoryContainer{
-		Regions: pr,
+		Regions:     pr,
+		MemoryPages: make(map[uint32]PhysicalPage),
 	}
 	// For each valid memory page, put it in the page map along with its type
-	var currPage uint32 = 0
-	for reg := range pr {
-		for i := uint32(0); i < pr[reg].NumPages; i++ {
-			switch pr[currPage].MemoryType {
-			case MemoryTypeVirtualRAM:
+	var currPage uint32 = 9
+	var i uint32 = 0
+	for _, xp := range pr {
+		fmt.Printf("Segment " + xp.Comment + " has " + strconv.Itoa(int(xp.NumPages)) + " pages\n")
+		switch xp.MemoryType {
+		case MemoryTypeVirtualRAM:
+			pmc.FreeVirtualPages = list.New()
+			pmc.UsedVirtualPages = list.New()
+			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
-					Buffer:     make([]byte, PageSize),
-					MemoryType: pr[currPage].MemoryType,
+					MemoryType: xp.MemoryType,
 					IsInUse:    false,
 				}
 				pmc.FreeVirtualPages.PushBack(currPage)
-				break
-			case MemoryTypeKernelRAM:
-			case MemoryTypePhysicalRAM:
-			case MemoryTypeBufferRAM:
-			case MemoryTypeIORAM:
-				pmc.MemoryPages[currPage] = PhysicalPage{
-					Buffer:     make([]byte, PageSize),
-					MemoryType: pr[currPage].MemoryType,
-				}
-				break
-			case MemoryTypeEmpty:
-				pmc.MemoryPages[currPage] = PhysicalPage{
-					MemoryType: pr[currPage].MemoryType,
-				}
-				break
-			case MemoryTypePhysicalROM:
-			case MemoryTypeKernelROM:
-			case MemoryTypeIOROM:
-				pmc.MemoryPages[currPage] = PhysicalPage{
-					MemoryType: pr[currPage].MemoryType,
-				}
-				break
-			default:
-				RemoteLogging.LogEvent("ERROR",
-					"PhysicalMemory_Initialize",
-					"Invalid memory type")
-				return nil, errors.New("Invalid memory type")
+				currPage++
 			}
-			currPage++
+			break
+		case MemoryTypeKernelRAM:
+		case MemoryTypePhysicalRAM:
+		case MemoryTypeBufferRAM:
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+					Buffer:     make([]byte, PageSize),
+				}
+			}
+			currPage += xp.NumPages
+			break
+		case MemoryTypeIORAM:
+		case MemoryTypeEmpty:
+		case MemoryTypePhysicalROM:
+		case MemoryTypeKernelROM:
+		case MemoryTypeIOROM:
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+				}
+			}
+			currPage += xp.NumPages
+			break
+		default:
 		}
 	}
 	// Done - return the container
 	RemoteLogging.LogEvent("INFO",
 		"PhysicalMemory_Initialize",
-		"Physical memory initialized")
+		"Physical memory initialized with "+strconv.Itoa(int(currPage))+" pages")
 	return &pmc, nil
 }
 
@@ -312,12 +315,17 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 	return errors.New("Page is wrong type")
 }
 
+// LoadPage
+// Loads a memory page specified by its page number into the provided buffer if it meets the required conditions.
+// Returns an error if the page does not exist, is not in use, is of the wrong type, or is read-only.
 func (pmc *PhysicalMemoryContainer) LoadPage(page uint32, buffer []byte) error {
 	val, ok := pmc.MemoryPages[uint32(page)]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page not found")
 		return errors.New("Page not found")
 	}
 	if val.IsInUse == false {
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is not in use")
 		return errors.New("Page is not in use")
 	}
 	switch val.MemoryType {
@@ -327,26 +335,35 @@ func (pmc *PhysicalMemoryContainer) LoadPage(page uint32, buffer []byte) error {
 	case MemoryTypeKernelRAM:
 		val := pmc.MemoryPages[page]
 		val.Buffer = buffer
-		pmc.MemoryPages[page] = val
+		copy(pmc.MemoryPages[page].Buffer, buffer)
+		RemoteLogging.LogEvent("INFO", "Physical_LoadPage", "Page loaded")
 		return nil
 	case MemoryTypePhysicalROM:
 	case MemoryTypeKernelROM:
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is read only")
 		return errors.New("Page is read only")
 	case MemoryTypeIORAM:
 	case MemoryTypeIOROM:
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "I/O not implemented")
 		return errors.New("I/O not implemented")
 	case MemoryTypeEmpty:
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is empty")
 		return errors.New("Page is empty")
 	}
+	RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is wrong type")
 	return errors.New("Page is wrong type")
 }
 
+// SavePage
+// Retrieves the buffer associated with a memory page if it is in use and of a valid type, or returns an error.
 func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 	val, ok := pmc.MemoryPages[page]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page not found")
 		return nil, errors.New("Page not found")
 	}
 	if val.IsInUse == false {
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is not in use")
 		return nil, errors.New("Page is not in use")
 	}
 	val, ok = pmc.MemoryPages[page]
@@ -358,9 +375,11 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 	}
 	val, ok = pmc.MemoryPages[page]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page not found")
 		return nil, errors.New("Page not found")
 	}
 	if val.IsInUse == false {
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is not in use")
 		return nil, errors.New("Page is not in use")
 	}
 	switch val.MemoryType {
@@ -370,26 +389,38 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 	case MemoryTypePhysicalROM:
 	case MemoryTypeKernelRAM:
 	case MemoryTypeKernelROM:
+
+		RemoteLogging.LogEvent("INFO", "Physical_SavePage", "Page saved")
 		return val.Buffer, nil
 	case MemoryTypeIORAM:
 	case MemoryTypeIOROM:
-		return nil, errors.New("I/O not implemented")
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypeEmpty:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is empty")
 		return nil, errors.New("Page is empty")
 	default:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is wrong type")
 		return nil, errors.New("Page is wrong type")
 	}
+	RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is wrong type")
 	return nil, errors.New("Page is wrong type")
 }
 
+// NumberOfFreeVirtualPages
+// Returns the number of free virtual memory pages in the PhysicalMemoryContainer.
 func (pmc *PhysicalMemoryContainer) NumberOfFreeVirtualPages() uint32 {
 	return uint32(pmc.FreeVirtualPages.Len())
 }
 
+// NumberOfUsedVirtualPages
+// Returns the number of virtual memory pages currently marked as in use in the container.
 func (pmc *PhysicalMemoryContainer) NumberOfUsedVirtualPages() uint32 {
 	return uint32(pmc.UsedVirtualPages.Len())
 }
 
+// AllocateNVirtualPage
+// Allocates a specified number of virtual memory pages if available, returning a list of allocated pages or an error.
 func (pmc *PhysicalMemoryContainer) AllocateNVirtualPage(num uint32) (*list.List, error) {
 	l := list.New()
 	if pmc.NumberOfFreeVirtualPages() < num {
@@ -406,7 +437,12 @@ func (pmc *PhysicalMemoryContainer) AllocateNVirtualPage(num uint32) (*list.List
 	return l, nil
 }
 
+// ReturnNVirtualPage
+// Releases a list of virtual memory pages back to the free pool and returns any encountered error.
 func (pmc *PhysicalMemoryContainer) ReturnNVirtualPage(l *list.List) error {
+	RemoteLogging.LogEvent("INFO",
+		"Physical_ReturnNVirtualPage",
+		"Returning "+strconv.Itoa(l.Len())+" pages")
 	for e := l.Front(); e != nil; e = e.Next() {
 		page := e.Value.(uint32)
 		err := pmc.ReturnVirtualPage(page)
@@ -414,6 +450,8 @@ func (pmc *PhysicalMemoryContainer) ReturnNVirtualPage(l *list.List) error {
 			return err
 		}
 	}
+	RemoteLogging.LogEvent("INFO", "ReturnNVirtulPages",
+		"Returned "+strconv.Itoa(l.Len())+" pages")
 	return nil
 }
 

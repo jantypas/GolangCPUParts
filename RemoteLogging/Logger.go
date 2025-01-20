@@ -10,9 +10,9 @@ import (
 var logFile *os.File
 var logChannel chan LogEventStruct
 var logApp string
-var loggingActive bool = false
+var loggingActive bool = true
 var logCount = 0
-var logNoJson = false
+var logNoJson = true
 
 type LogEventStruct struct {
 	MessageNumber int    `json:"message_number"`

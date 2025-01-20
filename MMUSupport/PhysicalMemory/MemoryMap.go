@@ -74,4 +74,26 @@ var MemoryMapTable = map[string][]PhysicalMemoryRegion{
 			MemoryType: MemoryTypeKernelRAM,
 		},
 	},
+	"TEST": {
+		{
+			Comment:    "1MB Virtual RAM",
+			NumPages:   0x100,
+			MemoryType: MemoryTypeVirtualRAM,
+		},
+		{
+			Comment:    "1MB Physical RAM",
+			NumPages:   0x100,
+			MemoryType: MemoryTypePhysicalRAM,
+		},
+		{
+			Comment:    "1MB I/O RAM",
+			NumPages:   0x100,
+			MemoryType: MemoryTypeIORAM,
+		},
+		{
+			Comment:    "1MB Physical ROM",
+			NumPages:   0x100,
+			MemoryType: MemoryTypePhysicalROM,
+		},
+	},
 }
