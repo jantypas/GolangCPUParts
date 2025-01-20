@@ -1,25 +1,5 @@
 package PhysicalMemory
 
-const (
-	MemoryTypeEmpty       = 0x0001
-	MemoryTypeVirtualRAM  = 0x0002
-	MemoryTypePhysicalRAM = 0x0004
-	MemoryTypePhysicalROM = 0x0008
-	MemoryTypeKernelRAM   = 0x0010
-	MemoryTypeKernelROM   = 0x0020
-	MemoryTypeIORAM       = 0x0040
-	MemoryTypeIOROM       = 0x0080
-	MemoryTypeBufferRAM   = 0x0100
-
-	PageSize = 4096
-)
-
-type PhysicalMemoryRegion struct {
-	Comment    string
-	NumPages   uint32
-	MemoryType int
-}
-
 var MemoryMapTable = map[string][]PhysicalMemoryRegion{
 	"OLD-IBM-MAINFRAME": {
 		{
@@ -77,22 +57,22 @@ var MemoryMapTable = map[string][]PhysicalMemoryRegion{
 	"TEST": {
 		{
 			Comment:    "1MB Virtual RAM",
-			NumPages:   0x100,
+			NumPages:   4,
 			MemoryType: MemoryTypeVirtualRAM,
 		},
 		{
 			Comment:    "1MB Physical RAM",
-			NumPages:   0x100,
+			NumPages:   4,
 			MemoryType: MemoryTypePhysicalRAM,
 		},
 		{
 			Comment:    "1MB I/O RAM",
-			NumPages:   0x100,
+			NumPages:   4,
 			MemoryType: MemoryTypeIORAM,
 		},
 		{
 			Comment:    "1MB Physical ROM",
-			NumPages:   0x100,
+			NumPages:   4,
 			MemoryType: MemoryTypePhysicalROM,
 		},
 	},

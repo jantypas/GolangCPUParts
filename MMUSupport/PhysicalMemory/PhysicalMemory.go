@@ -8,6 +8,38 @@ import (
 	"strconv"
 )
 
+const (
+	MemoryTypeEmpty       = 0x0001
+	MemoryTypeVirtualRAM  = 0x0002
+	MemoryTypePhysicalRAM = 0x0004
+	MemoryTypePhysicalROM = 0x0008
+	MemoryTypeKernelRAM   = 0x0010
+	MemoryTypeKernelROM   = 0x0020
+	MemoryTypeIORAM       = 0x0040
+	MemoryTypeIOROM       = 0x0080
+	MemoryTypeBufferRAM   = 0x0100
+
+	PageSize = 4096
+)
+
+var MemoryTypeNames = map[int]string{
+	MemoryTypeEmpty:       "Empty",
+	MemoryTypeVirtualRAM:  "Virtual RAM",
+	MemoryTypePhysicalRAM: "Physical RAM",
+	MemoryTypePhysicalROM: "Physical ROM",
+	MemoryTypeKernelRAM:   "Kernel RAM",
+	MemoryTypeKernelROM:   "Kernel ROM",
+	MemoryTypeIORAM:       "I/O RAM",
+	MemoryTypeIOROM:       "I/O ROM",
+	MemoryTypeBufferRAM:   "Buffer RAM",
+}
+
+type PhysicalMemoryRegion struct {
+	Comment    string
+	NumPages   uint32
+	MemoryType int
+}
+
 // PhysicalPage
 // For every physical page we manage, we keep one of these structures
 type PhysicalPage struct {
@@ -49,25 +81,28 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 	// For each valid memory page, put it in the page map along with its type
 	var currPage uint32 = 0
 	var i uint32 = 0
-	for _, xp := range pr {
+	lpr := len(pr)
+	for idx := 0; idx < lpr; idx++ {
+		xp := pr[idx]
 		fmt.Printf("Segment " + xp.Comment + " has " + strconv.Itoa(int(xp.NumPages)) + " pages\n")
 		switch xp.MemoryType {
 		case MemoryTypeVirtualRAM:
+			fmt.Println("Processing virtual RAM")
 			pmc.FreeVirtualPages = list.New()
 			pmc.UsedVirtualPages = list.New()
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
 					IsInUse:    false,
+					Buffer:     make([]byte, PageSize),
 				}
 				pmc.FreeVirtualPages.PushBack(currPage)
 				fmt.Print("Page " + strconv.Itoa(int(currPage)) + "\n")
 				currPage++
 			}
-			break
+			continue
 		case MemoryTypeKernelRAM:
-		case MemoryTypePhysicalRAM:
-		case MemoryTypeBufferRAM:
+			fmt.Println("Processing kernel RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
@@ -75,19 +110,73 @@ func PhysicalMemory_Initialize(name string) (*PhysicalMemoryContainer, error) {
 				}
 				currPage++
 			}
-			break
+			continue
+		case MemoryTypePhysicalRAM:
+			fmt.Println("Processing physical RAM")
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+					Buffer:     make([]byte, PageSize),
+				}
+				fmt.Print("Page " + strconv.Itoa(int(currPage)) + "\n")
+				currPage++
+			}
+			continue
+		case MemoryTypeBufferRAM:
+			fmt.Println("Processing buffer RAM")
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+					Buffer:     make([]byte, PageSize),
+				}
+				currPage++
+			}
+			continue
 		case MemoryTypeIORAM:
-		case MemoryTypeEmpty:
-		case MemoryTypePhysicalROM:
-		case MemoryTypeKernelROM:
-		case MemoryTypeIOROM:
+			fmt.Println("Processing I/O RAM")
 			for i = 0; i < xp.NumPages; i++ {
 				pmc.MemoryPages[currPage] = PhysicalPage{
 					MemoryType: xp.MemoryType,
 				}
 				currPage++
 			}
-			break
+			continue
+		case MemoryTypeEmpty:
+			fmt.Println("Processing empty RAM")
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+				}
+				currPage++
+			}
+			continue
+		case MemoryTypePhysicalROM:
+			fmt.Println("Processing physical ROM")
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+				}
+				currPage++
+			}
+			continue
+		case MemoryTypeKernelROM:
+			fmt.Println("Processing kernel ROM")
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+				}
+				currPage++
+			}
+			continue
+		case MemoryTypeIOROM:
+			fmt.Println("Processing I/O ROM")
+			for i = 0; i < xp.NumPages; i++ {
+				pmc.MemoryPages[currPage] = PhysicalPage{
+					MemoryType: xp.MemoryType,
+				}
+				currPage++
+			}
+			continue
 		default:
 		}
 	}
@@ -461,4 +550,8 @@ func (pmc *PhysicalMemoryContainer) ReturnNVirtualPage(l *list.List) error {
 func (pmc *PhysicalMemoryContainer) ReturnMemoryMap() []PhysicalMemoryRegion {
 	RemoteLogging.LogEvent("INFO", "Physical_ReturnMemoryMap", "Returning memory map")
 	return pmc.Regions
+}
+
+func (pmc *PhysicalMemoryContainer) GetMemoryType(page uint32) int {
+	return pmc.MemoryPages[page].MemoryType
 }
