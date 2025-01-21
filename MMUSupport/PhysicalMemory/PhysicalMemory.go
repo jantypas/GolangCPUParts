@@ -466,8 +466,27 @@ func (pmc *PhysicalMemoryContainer) LoadPage(page uint32, buffer []byte) error {
 	}
 	switch val.MemoryType {
 	case MemoryTypeVirtualRAM:
+		val := pmc.MemoryPages[page]
+		if val.IsInUse == false {
+			RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is not in use")
+			return errors.New("Page is not in use")
+		}
+		val.Buffer = buffer
+		copy(pmc.MemoryPages[page].Buffer, buffer)
+		RemoteLogging.LogEvent("INFO", "Physical_LoadPage", "Page loaded")
+		return nil
 	case MemoryTypePhysicalRAM:
+		val := pmc.MemoryPages[page]
+		val.Buffer = buffer
+		copy(pmc.MemoryPages[page].Buffer, buffer)
+		RemoteLogging.LogEvent("INFO", "Physical_LoadPage", "Page loaded")
+		return nil
 	case MemoryTypeBufferRAM:
+		val := pmc.MemoryPages[page]
+		val.Buffer = buffer
+		copy(pmc.MemoryPages[page].Buffer, buffer)
+		RemoteLogging.LogEvent("INFO", "Physical_LoadPage", "Page loaded")
+		return nil
 	case MemoryTypeKernelRAM:
 		val := pmc.MemoryPages[page]
 		val.Buffer = buffer
@@ -475,10 +494,14 @@ func (pmc *PhysicalMemoryContainer) LoadPage(page uint32, buffer []byte) error {
 		RemoteLogging.LogEvent("INFO", "Physical_LoadPage", "Page loaded")
 		return nil
 	case MemoryTypePhysicalROM:
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is read only")
+		return errors.New("Page is read only")
 	case MemoryTypeKernelROM:
 		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "Page is read only")
 		return errors.New("Page is read only")
 	case MemoryTypeIORAM:
+		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "I/O not implemented")
+		return errors.New("I/O not implemented")
 	case MemoryTypeIOROM:
 		RemoteLogging.LogEvent("ERROR", "Physical_LoadPage", "I/O not implemented")
 		return errors.New("I/O not implemented")
@@ -498,15 +521,8 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page not found")
 		return nil, errors.New("Page not found")
 	}
-	if val.IsInUse == false {
+	if val.MemoryType == MemoryTypeVirtualRAM && val.IsInUse == false {
 		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is not in use")
-		return nil, errors.New("Page is not in use")
-	}
-	val, ok = pmc.MemoryPages[page]
-	if !ok {
-		return nil, errors.New("Page not found")
-	}
-	if val.IsInUse == false {
 		return nil, errors.New("Page is not in use")
 	}
 	val, ok = pmc.MemoryPages[page]
@@ -514,21 +530,31 @@ func (pmc *PhysicalMemoryContainer) SavePage(page uint32) ([]byte, error) {
 		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page not found")
 		return nil, errors.New("Page not found")
 	}
-	if val.IsInUse == false {
-		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page is not in use")
-		return nil, errors.New("Page is not in use")
-	}
 	switch val.MemoryType {
 	case MemoryTypeVirtualRAM:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypePhysicalRAM:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypeBufferRAM:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypePhysicalROM:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypeKernelRAM:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypeKernelROM:
 
 		RemoteLogging.LogEvent("INFO", "Physical_SavePage", "Page saved")
 		return val.Buffer, nil
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypeIORAM:
+		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
+		return pmc.MemoryPages[page].Buffer, nil
 	case MemoryTypeIOROM:
 		RemoteLogging.LogEvent("ERROR", "Physical_SavePage", "Page saved")
 		return pmc.MemoryPages[page].Buffer, nil
