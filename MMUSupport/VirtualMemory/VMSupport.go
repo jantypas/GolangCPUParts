@@ -14,23 +14,30 @@ const (
 	LRUCacheTakeRate = 3
 )
 
+// VirtualPage
+// Each virtual memory page is contained in one these structures
 type VirtualPage struct {
-	PageFlags    uint64
-	PhysicalPage uint32
+	PageFlags    uint64 // The various page state flags (active, on disk etc)
+	PhysicalPage uint32 // The physical page we're referring to
 }
 
+// VMContainer
+// The container for all our virtual pages
 type VMContainer struct {
-	Swapper        MMUSupport.SwapperInterface
-	PhysicalMemory PhysicalMemory.PhysicalMemory
-	VirtualPages   []VirtualPage
-	NumPages       uint32
-	FreePages      *list.List
-	UsedPages      *list.List
-	LRUCache       *list.List
+	Swapper        MMUSupport.SwapperInterface            // A reference to our swapper service
+	PhysicalMemory PhysicalMemory.PhysicalMemoryContainer // The physical memory service
+	VirtualPages   []VirtualPage                          // Table of virtual pages
+	NumPages       uint32                                 // # of virtual pages
+	FreePages      *list.List                             // Free page list
+	UsedPages      *list.List                             // Used page list
+	LRUCache       *list.List                             // Least recently used page cache
 }
 
+// VirtualMemory_Initialize
+// Initializes the virtual memory system.  Takes a reference to the
+// physical memory container, our swapper interface, the number of virtual pages we want
 func VirtualMemory_Initiailize(
-	pm PhysicalMemory.PhysicalMemory,
+	pm PhysicalMemory.PhysicalMemoryContainer,
 	swapper MMUSupport.SwapperInterface,
 	numVirtPages uint32) (*VMContainer, error) {
 	RemoteLogging.LogEvent("INFO", "VirtualMemory_Initialize", "Initializing virtual memory")
