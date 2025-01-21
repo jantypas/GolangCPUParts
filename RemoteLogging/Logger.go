@@ -79,6 +79,6 @@ func LogEvent(level string, source string, msg string) {
 			EventMsg:    msg,
 		}
 		logChannel <- msg
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 }

@@ -250,6 +250,13 @@ func (pmc *PhysicalMemoryContainer) ReturnVirtualPage(page uint32) error {
 			"Page not found")
 		return errors.New("Page not found")
 	}
+	if val.MemoryType != MemoryTypeVirtualRAM {
+		// Not a virtual page
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_ReturnVirtualPage",
+			"Page wrong type")
+		return errors.New("Page wrong type")
+	}
 	if val.IsInUse == false {
 		// Page is not in use-- we can't do this
 		RemoteLogging.LogEvent("ERROR",
@@ -303,16 +310,42 @@ func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 	}
 	switch val.MemoryType {
 	case MemoryTypeVirtualRAM:
+		if !val.IsInUse {
+			RemoteLogging.LogEvent("ERROR",
+				"Physical_ReadAddress",
+				"Page is not in use")
+			return 0, errors.New("Page is not in use")
+		} else {
+			RemoteLogging.LogEvent("INFO",
+				"Physical_ReadAddress",
+				"Reading address "+strconv.Itoa(int(addr))+"")
+			return val.Buffer[offset], nil
+		}
 	case MemoryTypePhysicalRAM:
+		RemoteLogging.LogEvent("INFO",
+			"Physical_ReadAddress",
+			"Reading address "+strconv.Itoa(int(addr))+"")
+		return val.Buffer[offset], nil
 	case MemoryTypeBufferRAM:
+		RemoteLogging.LogEvent("INFO", "Physical_ReadAddress",
+			"Reading address "+strconv.Itoa(int(addr))+"")
+		return val.Buffer[offset], nil
 	case MemoryTypePhysicalROM:
+		RemoteLogging.LogEvent("INFO", "Physical_ReadAddress",
+			"Reading address "+strconv.Itoa(int(addr))+"")
+		return val.Buffer[offset], nil
 	case MemoryTypeKernelRAM:
+		RemoteLogging.LogEvent("INFO", "Physical_ReadAddress",
+			"Reading address "+strconv.Itoa(int(addr))+"")
+		return val.Buffer[offset], nil
 	case MemoryTypeKernelROM:
-
 		RemoteLogging.LogEvent("INFO", "Physical_ReadAddress",
 			"Read complete")
 		return val.Buffer[offset], nil
 	case MemoryTypeIORAM:
+		RemoteLogging.LogEvent("INFO",
+			"Physical_ReadAddress", "I/O not implemented")
+		return 0, errors.New("I/O not implemented")
 	case MemoryTypeIOROM:
 		RemoteLogging.LogEvent("ERROR",
 			"Physical_ReadAddress",
@@ -353,8 +386,7 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 			"Page not found")
 		return errors.New("Page not found")
 	}
-	if val.IsInUse == false {
-
+	if val.MemoryType == MemoryTypeVirtualRAM && val.IsInUse == false {
 		RemoteLogging.LogEvent(
 			"ERROR",
 			"Physical_WriteAddress",
@@ -363,8 +395,29 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 	}
 	switch val.MemoryType {
 	case MemoryTypeVirtualRAM:
+		val := pmc.MemoryPages[page]
+		val.Buffer[offset] = data
+		pmc.MemoryPages[page] = val
+		RemoteLogging.LogEvent("INFO",
+			"Physical_WriteAddress",
+			"Write address completed")
+		return nil
 	case MemoryTypePhysicalRAM:
+		val := pmc.MemoryPages[page]
+		val.Buffer[offset] = data
+		pmc.MemoryPages[page] = val
+		RemoteLogging.LogEvent("INFO",
+			"Physical_WriteAddress",
+			"Write address completed")
+		return nil
 	case MemoryTypeBufferRAM:
+		val := pmc.MemoryPages[page]
+		val.Buffer[offset] = data
+		pmc.MemoryPages[page] = val
+		RemoteLogging.LogEvent("INFO",
+			"Physical_WriteAddress",
+			"Write address completed")
+		return nil
 	case MemoryTypeKernelRAM:
 		val := pmc.MemoryPages[page]
 		val.Buffer[offset] = data
@@ -374,11 +427,17 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 			"Write address completed")
 		return nil
 	case MemoryTypePhysicalROM:
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_WriteAddress", "Page is read only")
+		return errors.New("Page is read only")
 	case MemoryTypeKernelROM:
 		RemoteLogging.LogEvent("ERROR",
 			"Physical_WriteAddress", "Page is read only")
 		return errors.New("Page is read only")
 	case MemoryTypeIORAM:
+		RemoteLogging.LogEvent("ERROR",
+			"Physical_WriteAddress", "I/O not implemented")
+		return errors.New("I/O not implemented")
 	case MemoryTypeIOROM:
 		RemoteLogging.LogEvent("ERROR",
 			"Physical_WriteAddress", "I/O not implemented")
@@ -539,6 +598,8 @@ func (pmc *PhysicalMemoryContainer) ReturnMemoryMap() []PhysicalMemoryRegion {
 	return pmc.Regions
 }
 
+// GetMemoryType
+// Retrieves the memory type of a specified memory page within the PhysicalMemoryContainer.
 func (pmc *PhysicalMemoryContainer) GetMemoryType(page uint32) int {
 	return pmc.MemoryPages[page].MemoryType
 }
