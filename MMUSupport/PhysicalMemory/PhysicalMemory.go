@@ -629,3 +629,14 @@ func (pmc *PhysicalMemoryContainer) ReturnMemoryMap() []PhysicalMemoryRegion {
 func (pmc *PhysicalMemoryContainer) GetMemoryType(page uint32) int {
 	return pmc.MemoryPages[page].MemoryType
 }
+
+func (pmc *PhysicalMemoryContainer) ReadPage(page uint32) ([]byte, error) {
+	RemoteLogging.LogEvent("INFO", "Physical_ReadPage", "Reading page "+strconv.Itoa(int(page)))
+	return pmc.MemoryPages[page].Buffer, nil
+}
+
+func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
+	RemoteLogging.LogEvent("INFO", "Physical_WritePage", "Writing page "+strconv.Itoa(int(page)))
+	copy(pmc.MemoryPages[page].Buffer, data)
+	return nil
+}

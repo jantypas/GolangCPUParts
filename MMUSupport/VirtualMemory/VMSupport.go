@@ -149,13 +149,17 @@ func (vnc *VMContainer) SwapOutPage(page uint32) error {
 		RemoteLogging.LogEvent("INFO", "SwapOutPage", "Page is not on disk -- swapping out physical page")
 		err := vnc.Swapper.SwapOut(vnc.PhysicalMemory, phyPage)
 		if err != nil {
+			// The swapper failed
 			RemoteLogging.LogEvent("ERROR", "SwapOutPage", "Swap failed: "+err.Error())
 			return err
 		}
 		// Return the physical page to the free pool
-		lst := list.New()
-		lst.PushBack(phyPage)
-		vnc.PhysicalMemory.ReturnVirtualPages(lst)
+		err = vnc.PhysicalMemory.ReturnVirtualPage(phyPage)
+		if err != nil {
+			// Can't return the page
+			RemoteLogging.LogEvent("ERROR", "SwapOutPage", "Unable to return physical page")
+			return err
+		}
 		// Mark the page as on disk
 		vnc.VirtualPages[page].PageFlags |= MMUSupport.PageIsOnDisk
 		RemoteLogging.LogEvent("INFO", "SwapOutPage", "Swap completed")
@@ -163,26 +167,39 @@ func (vnc *VMContainer) SwapOutPage(page uint32) error {
 	}
 }
 
+// SwapOutOldPages
+// Since it's inefficient to swap only a single page, try swapping out a few old pages
 func (vmc *VMContainer) SwapOutOldPages() error {
+	// If we have many pages we can swap out
 	if vmc.LRUCache.Len() > MinLRUCache {
+		// Swap out at most LRUCacheTakeRate pages
 		for i := 0; i < LRUCacheTakeRate; i++ {
 			err := vmc.SwapOutPage(vmc.LRUCache.Back().Value.(uint32))
 			if err != nil {
+
 				return err
 			}
 		}
+		RemoteLogging.LogEvent("INFO", "SwapOutOldPages", "Swapping out completed")
 		return nil
 	}
-	if vmc.LRUCache.Len() > LRUCacheTakeRate {
+	// We have less than number of pages we want, just swap one
+	if vmc.LRUCache.Len() <= LRUCacheTakeRate {
 		err := vmc.SwapOutPage(vmc.LRUCache.Back().Value.(uint32))
 		if err != nil {
+			// Can't swap the page
+			RemoteLogging.LogEvent("ERROR", "SwapOutOldPages", "Unable to swap out page")
 			return err
 		}
+		RemoteLogging.LogEvent("INFO", "SwapOutOldPages", "Swapping out completed")
 		return nil
 	}
+	RemoteLogging.LogEvent("ERROR", "SwapOutOldPages", "No pages to swap out")
 	return errors.New("No pages to swap out")
 }
 
+// SwapInPage
+// Swap in a page from disk
 func (vnc *VMContainer) SwapInPage(page uint32) error {
 	// If we don't have room to swap a page in, swap some out
 	if vnc.FreePages.Len() == 0 {
@@ -202,21 +219,27 @@ func (vnc *VMContainer) SwapInPage(page uint32) error {
 	return nil
 }
 
+// ReadAddress
+// Read a byte form a virtual page
 func (vmc *VMContainer) ReadAddress(addr uint64) (byte, error) {
 	RemoteLogging.LogEvent("INFO", "ReadAddress", "Reading address "+strconv.Itoa(int(addr)))
+	// Compute the page and offset within the page
 	page := uint32(addr / PhysicalMemory.PageSize)
 	offset := addr % PhysicalMemory.PageSize
 	RemoteLogging.LogEvent("INFO",
 		"ReadAddress",
 		"Page is "+strconv.Itoa(int(page))+" and offset is "+strconv.Itoa(int(offset)))
+	// If the page is bigger than the number of pages we have, this is an error
 	if page >= uint32(len(vmc.VirtualPages)) {
 		RemoteLogging.LogEvent("ERROR", "ReadAddress", "Invalid virtual address")
 		return 0, errors.New("Invalid virtual address")
 	}
+	// If page is not active, this is an error
 	if vmc.VirtualPages[page].PageFlags&MMUSupport.PageIsActive == 0 {
 		RemoteLogging.LogEvent("ERROR", "ReadAddress", "Page is not active")
 		return 0, errors.New("Page is not active")
 	}
+	// If the page is on disk, try to bring it in
 	if vmc.VirtualPages[page].PageFlags&MMUSupport.PageIsOnDisk == MMUSupport.PageIsOnDisk {
 		RemoteLogging.LogEvent("INFO", "ReadAddress", "Reading from on disk page")
 		err := vmc.SwapInPage(page)
@@ -226,17 +249,25 @@ func (vmc *VMContainer) ReadAddress(addr uint64) (byte, error) {
 		}
 		RemoteLogging.LogEvent("INFO", "ReadAddress", "Page swapped in")
 		vmc.LRUCache.PushBack(page)
-		return vmc.PhysicalMemory.PhysicalPages[vmc.VirtualPages[page].PhysicalPage].Buffer[offset], nil
+		physPage := vmc.VirtualPages[page].PhysicalPage
+		b, err := vmc.PhysicalMemory.ReadPage(physPage)
+		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "ReadAddress", "Unable to read page")
+			return 0, errors.New("Unable to read page")
+		}
+		return b[offset], nil
 	}
 	return 0, errors.New("Unknown error")
 }
 
+// WriteAddress
+// Write a byte to virtual memory
 func (vnc *VMContainer) WriteAddress(addr uint64, data byte) error {
 	RemoteLogging.LogEvent("INFO",
 		"WriteAddress",
 		"Writing "+strconv.Itoa(int(data))+" to address "+strconv.Itoa(int(addr)))
 	page := uint32(addr / PhysicalMemory.PageSize)
-	offset := addr % MMUSupport.PageSize
+	offset := addr % PhysicalMemory.PageSize
 	if vnc.VirtualPages[page].PageFlags&MMUSupport.PageIsActive == 0 {
 		RemoteLogging.LogEvent("ERROR", "WriteAddress", "Page is not active")
 		return errors.New("Page is not active")
@@ -248,7 +279,18 @@ func (vnc *VMContainer) WriteAddress(addr uint64, data byte) error {
 			return errors.New("Unable to swap in page")
 		}
 		vnc.LRUCache.PushBack(page)
-		vnc.PhysicalMemory.PhysicalPages[vnc.VirtualPages[page].PhysicalPage].Buffer[offset] = data
+		physPage := vnc.VirtualPages[page].PhysicalPage
+		b, err := vnc.PhysicalMemory.ReadPage(physPage)
+		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "WriteAddress", "Unable to read page")
+			return errors.New("Unable to read page")
+		}
+		b[offset] = data
+		err = vnc.PhysicalMemory.WritePage(physPage, b)
+		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "WriteAddress", "Unable to write page")
+			return errors.New("Unable to write page")
+		}
 		return nil
 	}
 	return errors.New("Unknown error")

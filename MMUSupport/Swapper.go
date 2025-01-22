@@ -44,7 +44,7 @@ func (s *SwapperInterface) Terminate() error {
 	return nil
 }
 
-func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page uint32) error {
+func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemoryContainer, page uint32) error {
 	RemoteLogging.LogEvent("INFO", "Swapper SwapOut", "Swapping out page "+strconv.Itoa(int(page)))
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page uint32
 		return err
 	}
 	// Copy data from the physical page
-	_, err = s.FileHandle.Write(pm.PhysicalPages[page].Buffer[:])
+	_, err = s.FileHandle.Write(pm.MemoryPages[page].Buffer[:])
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "Swapper SwapOut", "Swap failed: "+err.Error())
 		return err
@@ -61,14 +61,14 @@ func (s *SwapperInterface) SwapOut(pm PhysicalMemory.PhysicalMemory, page uint32
 	return nil
 }
 
-func (s *SwapperInterface) SwapIn(pm PhysicalMemory.PhysicalMemory, page int) error {
-	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swapping in page "+strconv.Itoa(page))
+func (s *SwapperInterface) SwapIn(pm PhysicalMemory.PhysicalMemoryContainer, page uint32) error {
+	RemoteLogging.LogEvent("INFO", "Swapper SwapIn", "Swapping in page "+strconv.Itoa(int(page)))
 	_, err := s.FileHandle.Seek(int64(page*SwapPageSize), 0)
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "Swapper SwapIn", "Swap failed: "+err.Error())
 		return err
 	}
-	_, err = s.FileHandle.Read(pm.PhysicalPages[page].Buffer[:])
+	_, err = s.FileHandle.Read(pm.MemoryPages[page].Buffer[:])
 	if err != nil {
 		RemoteLogging.LogEvent("ERROR", "Swapper SwapIn", "Swap failed: "+err.Error())
 		return err
