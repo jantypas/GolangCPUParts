@@ -295,3 +295,9 @@ func (vnc *VMContainer) WriteAddress(addr uint64, data byte) error {
 	}
 	return errors.New("Unknown error")
 }
+
+// GetMemoryMap
+// Return the system memory map
+func (vmc *VMContainer) GetMemoryMap() []PhysicalMemory.PhysicalMemoryRegion {
+	return vmc.PhysicalMemory.Regions
+}
