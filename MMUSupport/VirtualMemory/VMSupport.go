@@ -301,3 +301,17 @@ func (vnc *VMContainer) WriteAddress(addr uint64, data byte) error {
 func (vmc *VMContainer) GetMemoryMap() []PhysicalMemory.PhysicalMemoryRegion {
 	return vmc.PhysicalMemory.Regions
 }
+
+func (vmc *VMContainer) AllocateNVirtualPages(numPages uint32) (*list.List, error) {
+	RemoteLogging.LogEvent("INFO", "AllocateNVirtualPages", "Allocating "+strconv.Itoa(int(numPages))+" virtual pages")
+	lst := list.New()
+	for i := uint32(0); i < numPages; i++ {
+		page, err := vmc.AllocateVirtualPage()
+		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "AllocateNVirtualPages", "Unable to allocate virtual page")
+			return nil, errors.New("Unable to allocate virtual page")
+		}
+		lst.PushBack(page)
+	}
+	return lst, nil
+}
