@@ -40,6 +40,7 @@ func VirtualMemory_Initiailize(
 	pm PhysicalMemory.PhysicalMemoryContainer,
 	swapper MMUSupport.SwapperInterface,
 	numVirtPages uint32) (*VMContainer, error) {
+	// First create the virtual memory structure itself
 	RemoteLogging.LogEvent("INFO", "VirtualMemory_Initialize", "Initializing virtual memory")
 	vmc := VMContainer{
 		PhysicalMemory: pm,
@@ -50,29 +51,42 @@ func VirtualMemory_Initiailize(
 		UsedPages:      list.New(),
 		LRUCache:       list.New(),
 	}
+	// For each virtual page, put it on the free page list
 	for i := uint32(0); i < numVirtPages; i++ {
 		vmc.FreePages.PushBack(i)
 	}
+	// Done
 	RemoteLogging.LogEvent("INFO", "VirtualMemory_Initialize", "Initialization completed")
 	return &vmc, nil
 }
 
+// Terminate
+// Termiante the virtual memory system
 func (vmc *VMContainer) Terminate() {
+	// Free our page lists
 	RemoteLogging.LogEvent("INFO", "VirtualMemory_Terminate", "Terminating virtual memory")
 	vmc.FreePages = nil
 	vmc.UsedPages = nil
+	// Even though we're done, it's the caller's responsability to shut down the physical memory
+	// system and stop the swapper
 	RemoteLogging.LogEvent("INFO", "VirtualMemory_Terminate", "Termination completed")
 }
 
+// AllocateVirtualPage
+// Allocate one page out of virtual memory -- returns the page numbger
 func (vmc *VMContainer) AllocateVirtualPage() (uint32, error) {
+	// If we're out of free pages, return the error
 	RemoteLogging.LogEvent("INFO", "AllocateVirtualPage", "Allocating virtual page")
 	if vmc.FreePages.Len() == 0 {
 		RemoteLogging.LogEvent("ERROR", "AllocateVirtualPage", "No free pages")
 		return 0, errors.New("No free virtual pages")
 	}
+	// Find the free page off the free page list
 	page := vmc.FreePages.Remove(vmc.FreePages.Front()).(uint32)
 	vmc.VirtualPages[page].PhysicalPage = 0
+	// Mark the retrieved page as active, and on disk
 	vmc.VirtualPages[page].PageFlags |= MMUSupport.PageIsActive | MMUSupport.PageIsOnDisk
+	// Mark the page on the used list
 	vmc.UsedPages.PushBack(page)
 	RemoteLogging.LogEvent("INFO",
 		"AllocateVirtualPage",
@@ -80,28 +94,40 @@ func (vmc *VMContainer) AllocateVirtualPage() (uint32, error) {
 	return page, nil
 }
 
+// ReturnVirtualPage
+// Return a specific page
 func (vmc *VMContainer) ReturnVirtualPage(page uint32) error {
+	// If page is not active, this is an error
 	RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Returning virtual page")
 	if vmc.VirtualPages[page].PageFlags&MMUSupport.PageIsActive == 0 {
 		RemoteLogging.LogEvent("ERROR", "ReturnVirtualPage", "Page is not active")
 		return errors.New("Page is not active")
 	}
+	// If page is on disk, mark it as off-disk and non-active
 	if vmc.VirtualPages[page].PageFlags&MMUSupport.PageIsOnDisk == MMUSupport.PageIsOnDisk {
 		RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Page is on disk -- no physical page to free")
 		vmc.VirtualPages[page].PageFlags &= ^MMUSupport.PageIsOnDisk
 		vmc.VirtualPages[page].PageFlags &= ^MMUSupport.PageIsActive
 		vmc.VirtualPages[page].PhysicalPage = 0
+		// Put back on the free list
 		vmc.FreePages.PushBack(page)
 		vmc.UsedPages.Remove(vmc.UsedPages.Front())
 		return nil
 	} else {
-		lst := list.New()
-		lst.PushBack(vmc.VirtualPages[page].PhysicalPage)
+		// Return the physical back to the physical page free pool
+		page := vmc.VirtualPages[page].PhysicalPage
 		RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Page is not on disk -- freeing physical page")
-		vmc.PhysicalMemory.ReturnVirtualPages(lst)
+		err := vmc.PhysicalMemory.ReturnVirtualPage(page)
+		// If we fail, return an error
+		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "ReturnVirtualPage", "Unable to return physical page")
+			return errors.New("Unable to return physical page")
+		}
+		// Mark the virtual page as inactive and not on disk
 		vmc.VirtualPages[page].PageFlags &= ^MMUSupport.PageIsOnDisk
 		vmc.VirtualPages[page].PageFlags &= ^MMUSupport.PageIsActive
 		vmc.VirtualPages[page].PhysicalPage = 0
+		// Put back on the free list
 		vmc.FreePages.PushBack(page)
 		vmc.UsedPages.Remove(vmc.UsedPages.Front())
 		RemoteLogging.LogEvent("INFO", "ReturnVirtualPage", "Physical page returned")
@@ -109,6 +135,8 @@ func (vmc *VMContainer) ReturnVirtualPage(page uint32) error {
 	}
 }
 
+// SwapOutPage
+// Swap a virtual page to disk
 func (vnc *VMContainer) SwapOutPage(page uint32) error {
 	// Get our physical page if any
 	phyPage := vnc.VirtualPages[page].PhysicalPage
