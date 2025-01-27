@@ -1,4 +1,4 @@
-package MemorySuport
+package MemoryMap
 
 import (
 	"sort"
@@ -14,13 +14,15 @@ const (
 	ProtectionWritable   = 0x0001
 	ProtectionExecutable = 0x0002
 	ProtectionSystem     = 0x0004
+	ReplaceableRange     = 0x0008
 )
 
 type MemoryMapRegion struct {
+	Key          uint16
 	StartAddress uint64
 	EndAddress   uint64
 	Permissions  uint64
-	SegmentType  uint64
+	SegmentType  uint16
 }
 
 var MMUTable = map[uint16][]MemoryMapRegion{}
