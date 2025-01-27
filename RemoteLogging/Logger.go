@@ -13,6 +13,7 @@ var logApp string
 var loggingActive bool = true
 var logCount = 0
 var logJson = false
+var LogReady = false
 
 type LogEventStruct struct {
 	MessageNumber int    `json:"message_number"`
@@ -61,6 +62,7 @@ func LogInit(appname string) error {
 			}
 		}()
 		time.Sleep(500 * time.Millisecond)
+		LogReady = true
 		return nil
 	}
 }
@@ -70,6 +72,9 @@ func SetLogginActive(state bool) {
 }
 
 func LogEvent(level string, source string, msg string) {
+	if !LogReady {
+		return
+	}
 	if loggingActive {
 		logCount++
 		msg := LogEventStruct{
