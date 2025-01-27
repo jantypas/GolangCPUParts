@@ -3,6 +3,7 @@ package PhysicalMemory
 import (
 	"GolangCPUParts/MemoryPackage/MemoryMap"
 	"GolangCPUParts/RemoteLogging"
+	"fmt"
 	"testing"
 )
 
@@ -106,7 +107,41 @@ func TestPhysicalMemoryContainer_ReadWriteTest(t *testing.T) {
 }
 
 func TestPhysicalMemoryContainer_ReadWritePageTest(t *testing.T) {
-
+	RemoteLogging.LogInit("test")
+	TestMap := []MemoryMap.MemoryMapRegion{
+		{
+			Key:          0,
+			StartAddress: 0x0000_0000_0000_0000,
+			EndAddress:   0x0000_0000_0000_FFFF,
+			Permissions:  0x0,
+			SegmentType:  0x0,
+		},
+		{
+			Key:          1,
+			StartAddress: 0x0000_0000_0001_0000,
+			EndAddress:   0x0000_0000_0001_FFFF,
+			Permissions:  0x1,
+			SegmentType:  0x1,
+		},
+	}
+	pmc, err := PhysicalMemoryInitialize(TestMap)
+	if err != nil {
+		t.Error(err)
+	}
+	buffer := make([]byte, 4096)
+	buffer[0] = 0x12
+	buffer[1] = 0x34
+	buffer[2] = 0x56
+	err = pmc.WritePage(17, buffer)
+	if err != nil {
+		t.Error(err)
+	}
+	pval, err := pmc.ReadPage(17)
+	if err != nil {
+		t.Error(err)
+	} else {
+		fmt.Println(pval)
+	}
 }
 
 func TestPhysicalMemoryInitialize(t *testing.T) {

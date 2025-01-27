@@ -3,6 +3,7 @@ package PhysicalMemory
 import (
 	"GolangCPUParts/MemoryPackage/MemoryMap"
 	"GolangCPUParts/RemoteLogging"
+	"errors"
 	"strconv"
 )
 
@@ -105,7 +106,12 @@ func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 		return 0, nil
 	}
 	// Compute the address in the buffer
-	newAddr := (uint32(addr/PageSize) - bl.StartPage) * PageSize
+	page := uint32(addr / PageSize)
+	if page > bl.NumPages {
+		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryReadAddress", "Invalid address "+
+			strconv.Itoa(int(addr)))
+	}
+	newAddr := (page - bl.StartPage) * PageSize
 	return bl.Buffer[newAddr], nil
 }
 
@@ -122,7 +128,13 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 		return nil
 	}
 	// Update buffer
-	newAddr := (uint32(addr/PageSize) - bl.StartPage) * PageSize
+	page := uint32(addr / PageSize)
+	if page > bl.NumPages {
+		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWriteAddress", "Invalid address "+
+			strconv.Itoa(int(addr)))
+		return nil
+	}
+	newAddr := (page - bl.StartPage) * PageSize
 	bl.Buffer[newAddr] = data
 	return nil
 }
@@ -141,6 +153,12 @@ func (pmc *PhysicalMemoryContainer) ReadPage(page uint32) ([]byte, error) {
 // WritePage
 // Write an entire page of memory to the buffer
 func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
+	if len(data) != PageSize {
+		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWritePage", "Invalid data length ")
+		return errors.New(
+			"WritePage: Data length must be equal to page size (" +
+				strconv.Itoa(PageSize) + ")")
+	}
 	bl := pmc.GetRegionByAddress(uint64(page) * PageSize)
 	if bl != nil {
 		return nil
