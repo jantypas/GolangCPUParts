@@ -10,7 +10,6 @@ import (
 type SwapperContainer struct {
 	Filename   string
 	FileHandle *os.File
-	vmc        *VirtualMemory.VMContainer
 }
 
 func Swapper_Initialize(name string,
