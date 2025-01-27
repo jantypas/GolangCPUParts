@@ -99,7 +99,7 @@ func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 		strconv.Itoa(int(addr)))
 	// Compute the block by address
 	bl := pmc.GetRegionByAddress(addr)
-	if bl != nil {
+	if bl == nil {
 		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryReadAddress", "Invalid address "+
 			strconv.Itoa(int(addr)))
 		return 0, nil
@@ -116,7 +116,7 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 		strconv.Itoa(int(addr)))
 	// Compute the block by address
 	bl := pmc.GetRegionByAddress(addr)
-	if bl != nil {
+	if bl == nil {
 		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWriteAddress", "Invalid address "+
 			strconv.Itoa(int(addr)))
 		return nil
