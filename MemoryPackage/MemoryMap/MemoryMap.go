@@ -15,10 +15,13 @@ const (
 	ProtectionExecutable = 0x0002
 	ProtectionSystem     = 0x0004
 	ReplaceableRange     = 0x0008
+	SegmentLocked        = 0x0010
 )
 
 type MemoryMapRegion struct {
 	Key          uint16
+	Comment      string
+	Tag          string
 	StartAddress uint64
 	EndAddress   uint64
 	Permissions  uint64

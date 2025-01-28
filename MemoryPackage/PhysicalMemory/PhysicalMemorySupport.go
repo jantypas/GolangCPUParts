@@ -129,7 +129,7 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 	}
 	// Update buffer
 	page := uint32(addr / PageSize)
-	if page > bl.NumPages {
+	if page-bl.StartPage > bl.NumPages {
 		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWriteAddress", "Invalid address "+
 			strconv.Itoa(int(addr)))
 		return nil
@@ -143,8 +143,8 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 // Returns the page as a byte slice and an error if the page is invalid or not mapped.
 func (pmc *PhysicalMemoryContainer) ReadPage(page uint32) ([]byte, error) {
 	bl := pmc.GetRegionByAddress(uint64(page) * PageSize)
-	if bl != nil {
-		return bl.Buffer, nil
+	if bl == nil {
+		return nil, errors.New("Invalid page")
 	}
 	newPage := page - bl.StartPage
 	return bl.Buffer[newPage*PageSize : (newPage+1)*PageSize], nil
@@ -160,10 +160,10 @@ func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
 				strconv.Itoa(PageSize) + ")")
 	}
 	bl := pmc.GetRegionByAddress(uint64(page) * PageSize)
-	if bl != nil {
-		return nil
+	if bl == nil {
+		return errors.New("Invalid page")
 	}
 	newPage := page - bl.StartPage
-	copy(bl.Buffer[newPage*PageSize:newPage+1*PageSize], data)
+	copy(bl.Buffer[newPage*PageSize:newPage*PageSize+PageSize], data)
 	return nil
 }

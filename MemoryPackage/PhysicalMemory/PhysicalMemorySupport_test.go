@@ -4,6 +4,7 @@ import (
 	"GolangCPUParts/MemoryPackage/MemoryMap"
 	"GolangCPUParts/RemoteLogging"
 	"fmt"
+	"strconv"
 	"testing"
 )
 
@@ -102,7 +103,7 @@ func TestPhysicalMemoryContainer_ReadWriteTest(t *testing.T) {
 		t.Error(err)
 	}
 	if val != 0x12 {
-		t.Error("Failed to read correct value")
+		t.Error("Failed to read correct value.  Got " + strconv.Itoa(int(val)))
 	}
 }
 
@@ -132,15 +133,14 @@ func TestPhysicalMemoryContainer_ReadWritePageTest(t *testing.T) {
 	buffer[0] = 0x12
 	buffer[1] = 0x34
 	buffer[2] = 0x56
-	err = pmc.WritePage(17, buffer)
+	err = pmc.WritePage(4, buffer)
 	if err != nil {
 		t.Error(err)
 	}
-	pval, err := pmc.ReadPage(17)
+	pval, err := pmc.ReadPage(4)
+	fmt.Println(pval)
 	if err != nil {
 		t.Error(err)
-	} else {
-		fmt.Println(pval)
 	}
 }
 
