@@ -48,3 +48,36 @@ func TestFindSegment(t *testing.T) {
 		t.Error("Failed to report no segment")
 	}
 }
+
+func TestDumpMap(t *testing.T) {
+	TestMap := []MemoryMapRegion{
+		{
+			Key:          0,
+			Comment:      "64KB of RAM",
+			Tag:          "RAM",
+			StartAddress: 0x0000_0000_0000_0000,
+			EndAddress:   0x0000_0000_0001_FFFF,
+			Permissions:  ReplaceableRange,
+			SegmentType:  SegmentTypePhysicalRAM,
+		},
+		{
+			Key:          1,
+			Comment:      "Kernel RAM",
+			Tag:          "KERNEL-RAM",
+			StartAddress: 0x0000_0000_0002_0000,
+			EndAddress:   0x0000_0000_0002_FFFF,
+			Permissions:  ProtectionWritable | ProtectionExecutable | ProtectionSystem,
+			SegmentType:  SegmentTypePhysicalRAM,
+		},
+		{
+			Key:          2,
+			Comment:      "IO Pages",
+			Tag:          "IO",
+			StartAddress: 0x0000_0000_0003_0000,
+			EndAddress:   0x0000_0000_0003_FFFF,
+			Permissions:  ProtectionExecutable,
+			SegmentType:  SegmentTypePhysicalIO,
+		},
+	}
+	DumpMemoryMap(TestMap)
+}

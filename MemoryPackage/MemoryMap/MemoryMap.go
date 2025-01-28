@@ -1,6 +1,7 @@
 package MemoryMap
 
 import (
+	"fmt"
 	"sort"
 )
 
@@ -17,6 +18,14 @@ const (
 	ReplaceableRange     = 0x0008
 	SegmentLocked        = 0x0010
 )
+
+var SegmentTypeNames = []string{
+	"Empty",
+	"Virtual RAM",
+	"Physical RAM",
+	"Physical IO",
+	"Buffer",
+}
 
 type MemoryMapRegion struct {
 	Key          uint16
@@ -48,4 +57,19 @@ func FindSegment(mr []MemoryMapRegion, addr uint64) *MemoryMapRegion {
 	} else {
 		return nil
 	}
+}
+
+func DumpMemoryMap(m []MemoryMapRegion) {
+	fmt.Println("--- Dumping Memory Map ---")
+	for _, v := range m {
+		pages := int(v.EndAddress-v.StartAddress) / 4096
+		fmt.Println("Start    End      Pages")
+		fmt.Printf("%08X-%08X  %4X\n", v.StartAddress, v.EndAddress, pages)
+		fmt.Printf("\tSegment Type: %s\n", SegmentTypeNames[v.SegmentType])
+		fmt.Printf("\tPermissions : %04X\n", v.Permissions)
+		fmt.Printf("\tKey         : %04X\n", v.Key)
+		fmt.Printf("\tTag         : %s\n", v.Tag)
+		fmt.Printf("\tComment     : %s\n", v.Comment)
+	}
+	fmt.Println("--- End of Memory Map ---")
 }
