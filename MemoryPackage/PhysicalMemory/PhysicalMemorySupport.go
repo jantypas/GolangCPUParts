@@ -95,7 +95,7 @@ func (pmc *PhysicalMemoryContainer) GetRegionByAddress(addr uint64) *PhysicalBlo
 
 // ReadAddress retrieves a byte from the physical memory at the specified address.
 // Returns the byte and an error if the address is invalid or not mapped.
-func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
+func (pmc *PhysicalMemoryContainer) ReadPhysicalAddress(addr uint64) (byte, error) {
 	RemoteLogging.LogEvent("INFO", "PhysicalMemoryReadAddress", "Reading address "+
 		strconv.Itoa(int(addr)))
 	// Compute the block by address
@@ -117,7 +117,7 @@ func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
 
 // WriteAddress writes a byte of data to the specified physical memory address.
 // Returns an error if the address is invalid or not writable.
-func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
+func (pmc *PhysicalMemoryContainer) WritePhysicalAddress(addr uint64, data byte) error {
 	RemoteLogging.LogEvent("INFO", "PhysicalMemoryWriteAddress", "Writing address "+
 		strconv.Itoa(int(addr)))
 	// Compute the block by address
@@ -141,7 +141,7 @@ func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
 
 // ReadPage retrieves the data of a physical memory page specified by its page number.
 // Returns the page as a byte slice and an error if the page is invalid or not mapped.
-func (pmc *PhysicalMemoryContainer) ReadPage(page uint32) ([]byte, error) {
+func (pmc *PhysicalMemoryContainer) ReadPhysicalPage(page uint32) ([]byte, error) {
 	bl := pmc.GetRegionByAddress(uint64(page) * PageSize)
 	if bl == nil {
 		return nil, errors.New("Invalid page")
@@ -152,7 +152,7 @@ func (pmc *PhysicalMemoryContainer) ReadPage(page uint32) ([]byte, error) {
 
 // WritePage
 // Write an entire page of memory to the buffer
-func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
+func (pmc *PhysicalMemoryContainer) WritePhysicalPage(page uint32, data []byte) error {
 	if len(data) != PageSize {
 		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWritePage", "Invalid data length ")
 		return errors.New(
@@ -166,4 +166,81 @@ func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
 	newPage := page - bl.StartPage
 	copy(bl.Buffer[newPage*PageSize:newPage*PageSize+PageSize], data)
 	return nil
+}
+
+func (pmc *PhysicalMemoryContainer) GetRegionByTag(tag string) *PhysicalBlock {
+	for i := range pmc.MyMap {
+		if pmc.MyMap[i].Tag == tag {
+			return &pmc.PhysicalBlocks[i]
+		}
+	}
+	return nil
+}
+
+func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
+	bl := MemoryMap.FindSegment(pmc.MyMap, addr)
+	switch bl.SegmentType {
+	case MemoryMap.SegmentTypeEmpty:
+		return 0, errors.New("Invalid address")
+	case MemoryMap.SegmentTypeVirtualRAM:
+		return pmc.ReadPhysicalAddress(addr)
+	case MemoryMap.SegmentTypePhysicalRAM:
+		return pmc.ReadPhysicalAddress(addr)
+	case MemoryMap.SegmentTypePhysicalIO:
+		return 0, errors.New("IO not implemented yet")
+	case MemoryMap.SegmentTypeBuffer:
+		return 0, errors.New("Buffer not implemented yet")
+	}
+	return 0, errors.New("Invalid address")
+}
+
+func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
+	bl := MemoryMap.FindSegment(pmc.MyMap, addr)
+	switch bl.SegmentType {
+	case MemoryMap.SegmentTypeEmpty:
+		return errors.New("Invalid address")
+	case MemoryMap.SegmentTypeVirtualRAM:
+		return pmc.WritePhysicalAddress(addr, data)
+	case MemoryMap.SegmentTypePhysicalRAM:
+		return pmc.WritePhysicalAddress(addr, data)
+	case MemoryMap.SegmentTypePhysicalIO:
+		return errors.New("IO not implemented yet")
+	case MemoryMap.SegmentTypeBuffer:
+		return errors.New("Buffer not implemented yet")
+	}
+	return errors.New("Invalid address")
+}
+
+func (pmc *PhysicalMemoryContainer) ReadPPage(page uint32) ([]byte, error) {
+	bl := MemoryMap.FindSegment(pmc.MyMap, uint64(page*PageSize))
+	switch bl.SegmentType {
+	case MemoryMap.SegmentTypeEmpty:
+		return nil, errors.New("Invalid address")
+	case MemoryMap.SegmentTypeVirtualRAM:
+		return pmc.ReadPhysicalPage(page)
+	case MemoryMap.SegmentTypePhysicalRAM:
+		return pmc.ReadPhysicalPage(page)
+	case MemoryMap.SegmentTypePhysicalIO:
+		return nil, errors.New("IO not implemented yet")
+	case MemoryMap.SegmentTypeBuffer:
+		return nil, errors.New("Buffer not implemented yet")
+	}
+	return nil, errors.New("Invalid address")
+}
+
+func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
+	bl := MemoryMap.FindSegment(pmc.MyMap, uint64(page*PageSize))
+	switch bl.SegmentType {
+	case MemoryMap.SegmentTypeEmpty:
+		return errors.New("Invalid address")
+	case MemoryMap.SegmentTypeVirtualRAM:
+		return pmc.WritePhysicalPage(page, data)
+	case MemoryMap.SegmentTypePhysicalRAM:
+		return pmc.WritePhysicalPage(page, data)
+	case MemoryMap.SegmentTypePhysicalIO:
+		return errors.New("IO not implemented yet")
+	case MemoryMap.SegmentTypeBuffer:
+		return errors.New("Buffer not implemented yet")
+	}
+	return errors.New("Invalid address")
 }

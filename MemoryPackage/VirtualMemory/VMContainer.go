@@ -1,9 +1,11 @@
 package VirtualMemory
 
 import (
+	"GolangCPUParts/MemoryPackage/MemoryMap"
 	"GolangCPUParts/MemoryPackage/PhysicalMemory"
 	"GolangCPUParts/MemoryPackage/Swapper"
 	"container/list"
+	"errors"
 )
 
 type VMPage struct {
@@ -20,25 +22,10 @@ type VMContainer struct {
 	LRUCache         *list.List
 }
 
-func VirtualMemoryInitialize(
-	vpages uint32,
-	pmc *PhysicalMemory.PhysicalMemoryContainer,
-	swap *Swapper.SwapperContainer) *VMContainer {
-	vmc := VMContainer{
-		MemoryPages: make(map[uint32]VMPage),
-	}
-	vmc.MemoryPages = make(map[uint32]VMPage, vpages)
-	vmc.PMemory = pmc
-	vmc.Swapper = swap
-	UsedVirtualPages := list.New()
-	LRUCache := list.New()
-	FreeVirtualPages := list.New()
-	vmc.PMemory.Get
-	return &vmc
+func VirtualMemoryInitialize(name string, vpages uint32) (*VMContainer, error) {
+
 }
 
 func (vmc *VMContainer) Terminate() {
-	vmc.Swapper.Terminate()
-	vmc.PMemory.Terminate()
-	vmc.MemoryPages = nil
+
 }
