@@ -92,6 +92,8 @@ func VirtualMemoryInitialize(
 	// See if the memory map is valid
 	mr, ok := MemoryMap.ProductionMap[name]
 	if !ok {
+		RemoteLogging.LogEvent("ERROR", "VirtualMemoryInitialize",
+			"Invalid memory map")
 		return nil, errors.New("Invalid memory map")
 	}
 	// Create physical memory for our virtual memory
@@ -102,6 +104,7 @@ func VirtualMemoryInitialize(
 	vmc := VMContainer{}
 	// Create the overall page map -- for each physical page, createa  virtual one
 	totalPagesNeeded := pmc.GetTotalPages()
+	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Total pages needed: "+string(totalPagesNeeded))
 	vmc.MemoryPages = make([]VMPage, totalPagesNeeded)
 	vmc.UsedVirtualPages = list.New()
 	vmc.FreeVirtualPages = list.New()
@@ -110,6 +113,8 @@ func VirtualMemoryInitialize(
 	vmc.LRUCache = list.New()
 	// Special handling for virtual region -- we need to know where these pages are
 	// all other pages should be locked in memory since we can't swap them
+	RemoteLogging.LogEvent("INFO", "AllocateVirtualPage",
+		"Preparing virtual memory")
 	for i := uint32(0); i < totalPagesNeeded; i++ {
 		if pmc.GetPageType(i) == MemoryMap.SegmentTypeVirtualRAM {
 			vmc.FreeVirtualPages.PushBack(i)
@@ -133,10 +138,12 @@ func VirtualMemoryInitialize(
 		return nil, err
 	}
 	vmc.PhysicalPMemory = pmc
+	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Virtual memory initialized")
 	return &vmc, nil
 }
 
 func (vmc *VMContainer) Terminate() {
+	RemoteLogging.LogEvent("INFO", "VirtualMemoryTerminate", "Terminating virtual memory")
 	vmc.Swapper.Terminate()
 	vmc.PhysicalPMemory.Terminate()
 	vmc.MemoryPages = nil
@@ -161,9 +168,11 @@ func (vmc *VMContainer) GetNumberUsedPages() uint32 {
 func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 	// Make sure we enough free pages
 	if vmc.GetNumberFreePages() < num {
+		RemoteLogging.LogEvent("INFO", "AllocateNVirtualPages", "Not enough free pages, swapping out pages")
 		vmc.SwapOldPages()
 		// Try again
 		if vmc.GetNumberFreePages() < num {
+			RemoteLogging.LogEvent("ERROR", "AllocateNVirtualPages", "Failed to swap out pages")
 			return nil, errors.New("Failed to allocate virtual pages")
 		}
 	}
@@ -172,12 +181,15 @@ func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 	for i := uint32(0); i < num; i++ {
 		// Allocate a physical page
 		if vmc.FreePhysicalMemory.Len() == 0 {
+			RemoteLogging.LogEvent("INFO", "AllocateVirtualPages", "No free physical pages, swapping out pages")
 			vmc.SwapOldPages()
 		}
 		if vmc.FreePhysicalMemory.Len() == 0 {
+			RemoteLogging.LogEvent("ERROR", "AllocateNVirtualPages", "Failed to swap out pages")
 			return nil, errors.New("Failed to allocate virtual pages")
 		}
 		if vmc.FreeVirtualPages.Len() == 0 {
+			RemoteLogging.LogEvent("ERROR", "AllocateNVirtualPages", "Failed to swap out pages")
 			return nil, errors.New("Failed to allocate virtual pages")
 		}
 		// OK, we have a page available
@@ -191,6 +203,7 @@ func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 		vmc.MemoryPages[newVPage].Status = PageStatus_Active | PageStatus_OnDisk
 		lst.PushBack(newVPage)
 	}
+	RemoteLogging.LogEvent("INFO", "AllocateNVirtualPages", "Allocated "+string(num)+" virtual pages")
 	return lst, nil
 }
 
