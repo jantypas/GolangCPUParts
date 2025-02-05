@@ -26,6 +26,7 @@ type LogEventStruct struct {
 
 func LogInit(appname string) error {
 	logCount = 0
+	err := os.Remove("/tmp/" + appname + ".log")
 	f, err := os.OpenFile("/tmp/"+appname+".log", os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		fmt.Println("Error opening log file")
