@@ -16,6 +16,7 @@ type PhysicalBlock struct {
 	NumPages    uint32 // Number of pages in the buffer
 	StartPage   uint32 // Where does our material start (on a page)
 	Protections uint64 // Any protection rules
+	SegmentType uint16
 	Key         uint16
 }
 
@@ -41,6 +42,7 @@ func PhysicalMemoryInitialize(mmap []MemoryMap.MemoryMapRegion) (*PhysicalMemory
 		pmc.PhysicalBlocks[i].Protections = mmap[i].Permissions
 		pmc.PhysicalBlocks[i].StartPage = uint32(mmap[i].StartAddress) / PageSize
 		pmc.PhysicalBlocks[i].Key = mmap[i].Key
+		pmc.PhysicalBlocks[i].SegmentType = mmap[i].SegmentType
 		totalBytes += mmap[i].EndAddress - mmap[i].StartAddress
 		totalPages += int(mmap[i].EndAddress-mmap[i].StartAddress) / PageSize
 	}
@@ -58,6 +60,14 @@ func (pmc *PhysicalMemoryContainer) Terminate() {
 	for i := range pmc.PhysicalBlocks {
 		pmc.PhysicalBlocks[i].Buffer = nil
 	}
+}
+
+func (pmc *PhysicalMemoryContainer) GetTotalPages() uint32 {
+	total := uint32(0)
+	for i := range pmc.PhysicalBlocks {
+		total += pmc.PhysicalBlocks[i].NumPages
+	}
+	return total
 }
 
 // GetRegionByKey
@@ -243,4 +253,9 @@ func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
 		return errors.New("Buffer not implemented yet")
 	}
 	return errors.New("Invalid address")
+}
+
+func (pmc *PhysicalMemoryContainer) GetPageType(page uint32) uint16 {
+	bl := MemoryMap.FindSegment(pmc.MyMap, uint64(page*PageSize))
+	return bl.SegmentType
 }
