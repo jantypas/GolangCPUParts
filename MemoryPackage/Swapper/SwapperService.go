@@ -2,7 +2,6 @@ package Swapper
 
 import (
 	"GolangCPUParts/MemoryPackage/PhysicalMemory"
-	"GolangCPUParts/MemoryPackage/VirtualMemory"
 	"errors"
 	"os"
 )
@@ -12,8 +11,7 @@ type SwapperContainer struct {
 	FileHandle *os.File
 }
 
-func Swapper_Initialize(name string,
-	vmc *VirtualMemory.VMContainer) (*SwapperContainer, error) {
+func Swapper_Initialize(name string) (*SwapperContainer, error) {
 	sc := SwapperContainer{Filename: name}
 	file, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {

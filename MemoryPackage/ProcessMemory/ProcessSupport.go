@@ -7,6 +7,18 @@ type ProcessSegment struct {
 	SegmentSize uint64
 }
 
-type ProcessMemory struct {
-	ProcessSegments []ProcessSegment
+type SegmentTable map[uint32]ProcessSegment
+
+func AllocateSegment(
+	numVPages uint32,
+	base uint64,
+	size uint64,
+	prot uint64,
+) (*ProcessSegment, error) {
+	ps := ProcessSegment{
+		Protection:  prot,
+		SegmentBase: base,
+		SegmentSize: size,
+	}
+	return &ps, nil
 }

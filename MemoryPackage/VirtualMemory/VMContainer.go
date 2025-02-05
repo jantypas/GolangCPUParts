@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	PageStatus_Active = 0x0001
-	PageStatus_OnDisk = 0x0002
-	PageStatus_Locked = 0x0004
+	PageStatus_Active = uint64(0x0000_0000_0000_0001)
+	PageStatus_OnDisk = uint64(0x0000_0000_0000_0002)
+	PageStatus_Locked = uint64(0x0000_0000_0000_0004)
 
 	MaxSwapPages = 4
 )
@@ -59,7 +59,7 @@ func (vmc *VMContainer) PageIsNotOnDisk(page uint32) {
 	vmc.MemoryPages[page].Status &= ^PageStatus_OnDisk
 }
 func (vmc *VMContainer) PageIsNotActive(page uint32) {
-	vmc.MemoryPages[page].Status &= ^PageStatus_Active
+	vmc.MemoryPages[page].Status &= (^PageStatus_Active)
 }
 func (vmc *VMContainer) PageIsNotLocked(page uint32) {
 	vmc.MemoryPages[page].Status &= ^PageStatus_Locked
@@ -87,7 +87,7 @@ func MoveUsedToFree(freelst *list.List, usedlst *list.List, pg uint32) {
 
 func VirtualMemoryInitialize(
 	cfg Configuration.ConfigObject,
-	name string, vpages uint32) (*VMContainer, error) {
+	name string) (*VMContainer, error) {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Initializing virtual memory")
 	// See if the memory map is valid
 	mr, ok := MemoryMap.ProductionMap[name]
@@ -126,7 +126,7 @@ func VirtualMemoryInitialize(
 		}
 	}
 	// Start the swapper
-	vmc.Swapper, err = Swapper.Swapper_Initialize(cfg.SwapFileNames, &vmc)
+	vmc.Swapper, err = Swapper.Swapper_Initialize(cfg.SwapFileNames)
 	if err != nil {
 		return nil, err
 	}

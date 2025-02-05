@@ -90,4 +90,30 @@ var ProductionMap = map[string]MemoryRegionList{
 			Permissions:  ProtectionWritable | ProtectionExecutable | ProtectionSystem | SegmentLocked,
 		},
 	},
+	"TEST-MAP": {
+		{
+			Key:          0,
+			Comment:      "Virtual Memory",
+			StartAddress: 0x0000_0000_0000_0000,
+			EndAddress:   0x0000_0000_0000_FFFF,
+			Permissions:  ProtectionWritable | ProtectionExecutable,
+			SegmentType:  SegmentTypeVirtualRAM,
+		},
+		{
+			Key:          1,
+			Comment:      "Physical Memory",
+			StartAddress: 0x0000_0000_0001_0000,
+			EndAddress:   0x0000_0000_0001_FFFF,
+			Permissions:  ProtectionWritable | ProtectionExecutable | ProtectionSystem,
+			SegmentType:  SegmentTypePhysicalRAM,
+		},
+		{
+			Key:          2,
+			Comment:      "IO Memory",
+			StartAddress: 0x0000_0000_0002_0000,
+			EndAddress:   0x0000_0000_0002_FFFF,
+			Permissions:  ProtectionWritable | ProtectionExecutable,
+			SegmentType:  SegmentTypePhysicalIO,
+		},
+	},
 }
