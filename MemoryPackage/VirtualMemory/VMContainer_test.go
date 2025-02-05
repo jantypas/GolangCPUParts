@@ -49,8 +49,13 @@ func TestVirtualMemoryAllocate(t *testing.T) {
 	if lst.Len() != 5 {
 		t.Error("Failed to allocate correct number of pages")
 	}
+	fmt.Println("Allocated Pages " + strconv.Itoa(int(vmc.GetNumberUsedPages())))
 	for l := lst.Front(); l != nil; l = l.Next() {
 		fmt.Println("Page " + strconv.Itoa(int(l.Value.(uint32))))
 	}
+	err = vmc.ReturnNVirtualPages(lst)
+	if err != nil {
+	}
+	fmt.Println("Returned Pages " + strconv.Itoa(int(vmc.GetNumberUsedPages())))
 	vmc.Terminate()
 }

@@ -76,12 +76,20 @@ func ListFindUint32(l *list.List, v uint32) *list.Element {
 
 func MoveFreeToUsed(freelst *list.List, usedlst *list.List, pg uint32) {
 	elm := ListFindUint32(freelst, pg)
+	if elm == nil {
+		panic("Can't find page in free list")
+		return
+	}
 	freelst.Remove(elm)
 	usedlst.PushBack(pg)
 }
 
 func MoveUsedToFree(freelst *list.List, usedlst *list.List, pg uint32) {
 	elm := ListFindUint32(usedlst, pg)
+	if elm == nil {
+		panic("Can't find page in used list")
+		return
+	}
 	usedlst.Remove(elm)
 	freelst.PushBack(pg)
 }
