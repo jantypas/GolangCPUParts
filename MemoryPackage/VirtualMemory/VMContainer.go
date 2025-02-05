@@ -105,6 +105,8 @@ func VirtualMemoryInitialize(
 	vmc.MemoryPages = make([]VMPage, totalPagesNeeded)
 	vmc.UsedVirtualPages = list.New()
 	vmc.FreeVirtualPages = list.New()
+	vmc.FreePhysicalMemory = list.New()
+	vmc.UsedPhysicalMemory = list.New()
 	vmc.LRUCache = list.New()
 	// Special handling for virtual region -- we need to know where these pages are
 	// all other pages should be locked in memory since we can't swap them
