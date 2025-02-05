@@ -8,6 +8,7 @@ import (
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -72,6 +73,13 @@ func ListFindUint32(l *list.List, v uint32) *list.Element {
 		}
 	}
 	return nil
+}
+
+func DebugList(name string, l *list.List) {
+	fmt.Println("List: " + name)
+	for l := l.Front(); l != nil; l = l.Next() {
+		fmt.Println(l.Value.(uint32))
+	}
 }
 
 func MoveFreeToUsed(freelst *list.List, usedlst *list.List, pg uint32) {
@@ -217,16 +225,22 @@ func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 		vmc.MemoryPages[newVPage].Status = PageStatus_Active | PageStatus_OnDisk
 		lst.PushBack(newVPage)
 	}
+	DebugList("Free Virtual Pages", vmc.FreeVirtualPages)
+	DebugList("Used virtual pages", vmc.UsedVirtualPages)
 	RemoteLogging.LogEvent("INFO", "AllocateNVirtualPages", "Allocated "+strconv.Itoa(int(num))+" virtual pages")
 	return lst, nil
 }
 
 func (vmc *VMContainer) ReturnNVirtualPages(pages *list.List) error {
 	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returning "+strconv.Itoa(int(pages.Len()))+" virtual pages")
+	DebugList("Free Virtual Pages", vmc.FreeVirtualPages)
+	DebugList("Used virtual pages", vmc.UsedVirtualPages)
 	for page := pages.Front(); page != nil; page.Next() {
-		page := page.Value.(uint32)
-		vmc.PageIsNotActive(page)
-		MoveUsedToFree(vmc.UsedVirtualPages, vmc.FreeVirtualPages, page)
+		newpage := page.Value.(uint32)
+		ppage := vmc.MemoryPages[newpage].PhysicalPage
+		MoveUsedToFree(vmc.UsedVirtualPages, vmc.FreeVirtualPages, newpage)
+		MoveFreeToUsed(vmc.UsedPhysicalMemory, vmc.FreePhysicalMemory, ppage)
+		vmc.PageIsNotActive(newpage)
 	}
 	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returned "+strconv.Itoa(int(pages.Len()))+" virtual pages")
 	return nil
