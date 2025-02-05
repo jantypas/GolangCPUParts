@@ -15,19 +15,19 @@ const (
 	PageStatus_OnDisk = 0x0002
 	PageStatus_Locked = 0x0004
 
-	MaxSwapPages	= 4
+	MaxSwapPages = 4
 )
 
 type VMContainer struct {
-	MemoryPages      []VMPage
-	MemoryMap        []MemoryMap.MemoryMapRegion
-	Swapper          *Swapper.SwapperContainer
-	PhysicalPMemory *PhysicalMemory.PhysicalMemoryContainer
+	MemoryPages        []VMPage
+	MemoryMap          []MemoryMap.MemoryMapRegion
+	Swapper            *Swapper.SwapperContainer
+	PhysicalPMemory    *PhysicalMemory.PhysicalMemoryContainer
 	FreePhysicalMemory *list.List
 	UsedPhysicalMemory *list.List
-	FreeVirtualPages *list.List
-	UsedVirtualPages *list.List
-	LRUCache         *list.List
+	FreeVirtualPages   *list.List
+	UsedVirtualPages   *list.List
+	LRUCache           *list.List
 }
 
 type VMPage struct {
@@ -65,9 +65,7 @@ func (vmc *VMContainer) PageIsNotLocked(page uint32) {
 	vmc.MemoryPages[page].Status &= ^PageStatus_Locked
 }
 func ListFindUint32(l *list.List, v uint32) *list.Element {
-	for l := l.Front();
-		l != nil;
-		l.Next() {
+	for l := l.Front(); l != nil; l.Next() {
 		if l.Value.(uint32) == v {
 			return l
 		}
@@ -86,7 +84,6 @@ func MoveUsedToFree(freelst *list.List, usedlst *list.List, pg uint32) {
 	usedlst.Remove(elm)
 	freelst.PushBack(pg)
 }
-
 
 func VirtualMemoryInitialize(
 	cfg Configuration.ConfigObject,
@@ -211,7 +208,7 @@ func (vmc *VMContainer) SwapOutPage(page uint32) error {
 	if vmc.IsPageOnDisk(page) {
 		return errors.New("Page is already on disk")
 	}
-	vmc.PageIsOnDisk(page
+	vmc.PageIsOnDisk(page)
 	pp := vmc.MemoryPages[page].PhysicalPage
 	bp, err := vmc.PhysicalPMemory.ReadPhysicalPage(pp)
 	if err != nil {
@@ -227,7 +224,7 @@ func (vmc *VMContainer) SwapOutPage(page uint32) error {
 
 func (vmc *VMContainer) SwapOldPages() {
 	if vmc.UsedVirtualPages.Len() > MaxSwapPages &&
-		vmc.LRUCache.Len() > MaxSwapPages{
+		vmc.LRUCache.Len() > MaxSwapPages {
 		// We enough to swap out MaxSwapPages to make extra room
 		// Swap out MaxSwapPages oldest pages
 		for i := 0; i < MaxSwapPages; i++ {
