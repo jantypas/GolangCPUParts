@@ -14,6 +14,7 @@ const (
 	PageStatus_Active = 0x0001
 	PageStatus_OnDisk = 0x0002
 	PageStatus_Locked = 0x0004
+
 	MaxSwapPages	= 4
 )
 
@@ -22,6 +23,8 @@ type VMContainer struct {
 	MemoryMap        []MemoryMap.MemoryMapRegion
 	Swapper          *Swapper.SwapperContainer
 	PhysicalPMemory *PhysicalMemory.PhysicalMemoryContainer
+	FreePhysicalMemory *list.List
+	UsedPhysicalMemory *list.List
 	FreeVirtualPages *list.List
 	UsedVirtualPages *list.List
 	LRUCache         *list.List
@@ -72,6 +75,19 @@ func ListFindUint32(l *list.List, v uint32) *list.Element {
 	return nil
 }
 
+func MoveFreeToUsed(freelst *list.List, usedlst *list.List, pg uint32) {
+	elm := ListFindUint32(freelst, pg)
+	freelst.Remove(elm)
+	usedlst.PushBack(pg)
+}
+
+func MoveUsedToFree(freelst *list.List, usedlst *list.List, pg uint32) {
+	elm := ListFindUint32(usedlst, pg)
+	usedlst.Remove(elm)
+	freelst.PushBack(pg)
+}
+
+
 func VirtualMemoryInitialize(
 	cfg Configuration.ConfigObject,
 	name string, vpages uint32) (*VMContainer, error) {
@@ -98,6 +114,7 @@ func VirtualMemoryInitialize(
 	for i := uint32(0); i < totalPagesNeeded; i++ {
 		if pmc.GetPageType(i) == MemoryMap.SegmentTypeVirtualRAM {
 			vmc.FreeVirtualPages.PushBack(i)
+			vmc.FreePhysicalMemory.PushBack(i)
 			vmc.MemoryPages[i] = VMPage{
 				VirutalPage:  i,
 				PhysicalPage: i,
@@ -129,6 +146,8 @@ func (vmc *VMContainer) Terminate() {
 	vmc.PhysicalPMemory = nil
 	vmc.FreeVirtualPages = nil
 	vmc.UsedVirtualPages = nil
+	vmc.FreePhysicalMemory = nil
+	vmc.UsedPhysicalMemory = nil
 	vmc.LRUCache = nil
 }
 
@@ -149,16 +168,29 @@ func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 			return nil, errors.New("Failed to allocate virtual pages")
 		}
 	}
-	// We have enoughh free pages now, let's allocate some
+	// We have enough free pages now, let's allocate some
 	lst := list.New()
 	for i := uint32(0); i < num; i++ {
-		elm := vmc.FreeVirtualPages.Front()
-		page := elm.Value.(uint32)
-		vmc.FreeVirtualPages.Remove(elm)
-		vmc.UsedVirtualPages.PushBack(page)
-		vmc.PageIsActive(page)
-		vmc.PageIsOnDisk(page)
-		lst.PushBack(page)
+		// Allocate a physical page
+		if vmc.FreePhysicalMemory.Len() == 0 {
+			vmc.SwapOldPages()
+		}
+		if vmc.FreePhysicalMemory.Len() == 0 {
+			return nil, errors.New("Failed to allocate virtual pages")
+		}
+		if vmc.FreeVirtualPages.Len() == 0 {
+			return nil, errors.New("Failed to allocate virtual pages")
+		}
+		// OK, we have a page available
+		newPPage := vmc.FreePhysicalMemory.Back().Value.(uint32)
+		MoveFreeToUsed(vmc.FreePhysicalMemory, vmc.UsedPhysicalMemory, newPPage)
+		// Get a virtual page
+		newVPage := vmc.FreeVirtualPages.Back().Value.(uint32)
+		MoveFreeToUsed(vmc.FreeVirtualPages, vmc.UsedVirtualPages, newVPage)
+		// Set up the virtual page
+		vmc.MemoryPages[newVPage].PhysicalPage = newPPage
+		vmc.MemoryPages[newVPage].Status = PageStatus_Active | PageStatus_OnDisk
+		lst.PushBack(newVPage)
 	}
 	return lst, nil
 }
@@ -167,9 +199,7 @@ func (vmc *VMContainer) ReturnNVirtualPages(pages *list.List) error {
 	for page := pages.Front(); page != nil; page.Next() {
 		page := page.Value.(uint32)
 		vmc.PageIsNotActive(page)
-		vmc.FreeVirtualPages.PushBack(page)
-		elm := ListFindUint32(vmc.UsedVirtualPages, page)
-		vmc.UsedVirtualPages.Remove(elm)
+		MoveUsedToFree(vmc.UsedVirtualPages, vmc.FreeVirtualPages, page)
 	}
 	return nil
 }
@@ -191,9 +221,7 @@ func (vmc *VMContainer) SwapOutPage(page uint32) error {
 	if err != nil {
 		return err
 	}
-	vmc.FreeVirtualPages.PushBack(page)
-	elm := ListFindUint32(vmc.UsedVirtualPages, page)
-	vmc.UsedVirtualPages.Remove(elm)
+	MoveUsedToFree(vmc.UsedVirtualPages, vmc.FreeVirtualPages, page)
 	return nil
 }
 
@@ -228,13 +256,24 @@ func (vmc *VMContainer) SwapInPage(page uint32) error {
 	if !vmc.IsPageOnDisk(page) {
 		return errors.New("Page is not on disk")
 	}
-	if vmc.FreeVirtualPages.Len() == 0 {
+	if vmc.FreePhysicalMemory.Len() == 0 {
 		vmc.SwapOldPages()
-		if vmc.FreeVirtualPages.Len() == 0 {
+		if vmc.FreePhysicalMemory.Len() == 0 {
 			return errors.New("Failed to swap in page")
 		}
 	}
-
+	// Get a free page
+	newPPage := vmc.FreePhysicalMemory.Back().Value.(uint32)
+	MoveFreeToUsed(vmc.FreePhysicalMemory, vmc.UsedPhysicalMemory, newPPage)
+	// Copy the buffer via the swapper
+	bp := make([]byte, PhysicalMemory.PageSize)
+	err := vmc.Swapper.SwapInPage(newPPage, bp)
+	if err != nil {
+		return err
+	}
+	vmc.MemoryPages[page].PhysicalPage = newPPage
+	vmc.PageIsNotOnDisk(page)
+	return nil
 }
 
 func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
@@ -248,7 +287,7 @@ func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
 		}
 	}
 	pp := vmc.MemoryPages[page].PhysicalPage
-	bp, err := vmc.PhysicaklPMemory.ReadPhysicalPage(pp)
+	bp, err := vmc.PhysicalPMemory.ReadPhysicalPage(pp)
 	if err != nil {
 		return nil, err
 	}
@@ -256,14 +295,42 @@ func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
 	return bp, nil
 }
 
-func (vnc *VMContainer) WritePage(page uint32, buffer []byte) error {
+func (vmc *VMContainer) WritePage(page uint32, buffer []byte) error {
+	if !vmc.IsPageActive(page) {
+		return errors.New("Page is not active")
+	}
+	if !vmc.IsPageOnDisk(page) {
+		err := vmc.SwapInPage(page)
+		if err != nil {
+			return err
+		}
+	}
+	pp := vmc.MemoryPages[page].PhysicalPage
+	err := vmc.PhysicalPMemory.WritePage(pp, buffer)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vmc *VMContainer) ReadAddress(addr uint64) (byte, error) {
+	page := addr / PhysicalMemory.PageSize
+	offset := addr % PhysicalMemory.PageSize
+	buffer, err := vmc.ReadPage(uint32(page))
+	if err != nil {
+		return 0, err
+	}
+	return buffer[offset], nil
 
 }
 
-func (vmc *VMContainer) ReadAddress(pid uint32, segment uint32, offset uint32) (uint64, error) {
-
-}
-
-func (vmc *VMContainer) WriteAddress(pid uint32, segment uint32, offset uint32, value uint64) error {
-
+func (vmc *VMContainer) WriteAddress(addr uint64, value byte) error {
+	page := addr / PhysicalMemory.PageSize
+	offset := addr % PhysicalMemory.PageSize
+	bp, err := vmc.ReadPage(uint32(page))
+	if err != nil {
+		return err
+	}
+	bp[offset] = value
+	return vmc.WritePage(uint32(page), bp)
 }
