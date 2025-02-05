@@ -137,7 +137,7 @@ func TestPhysicalMemoryContainer_ReadWritePageTest(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	pval, err := pmc.ReadPage(4)
+	pval, err := pmc.ReadPPage(4)
 	fmt.Println(pval)
 	if err != nil {
 		t.Error(err)

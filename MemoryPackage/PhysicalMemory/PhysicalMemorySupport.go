@@ -55,11 +55,15 @@ func PhysicalMemoryInitialize(mmap []MemoryMap.MemoryMapRegion) (*PhysicalMemory
 
 // Terminate
 // Given a memory container, terminate everything
-func (pmc *PhysicalMemoryContainer) Terminate() {
+func (pmc *PhysicalMemoryContainer) Terminate() error {
 	RemoteLogging.LogEvent("INFO", "PhysicalMemoryTerminate", "Terminating physical memory")
+	if pmc == nil {
+		return errors.New("Physical memory is nil")
+	}
 	for i := range pmc.PhysicalBlocks {
 		pmc.PhysicalBlocks[i].Buffer = nil
 	}
+	return nil
 }
 
 func (pmc *PhysicalMemoryContainer) GetTotalPages() uint32 {

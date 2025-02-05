@@ -66,7 +66,7 @@ func (vmc *VMContainer) PageIsNotLocked(page uint32) {
 	vmc.MemoryPages[page].Status &= ^PageStatus_Locked
 }
 func ListFindUint32(l *list.List, v uint32) *list.Element {
-	for l := l.Front(); l != nil; l.Next() {
+	for l := l.Front(); l != nil; l = l.Next() {
 		if l.Value.(uint32) == v {
 			return l
 		}
@@ -143,8 +143,12 @@ func VirtualMemoryInitialize(
 	return &vmc, nil
 }
 
-func (vmc *VMContainer) Terminate() {
+func (vmc *VMContainer) Terminate() error {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryTerminate", "Terminating virtual memory")
+	if vmc == nil {
+		RemoteLogging.LogEvent("ERROR", "VirtualMemoryTerminate", "VMContainer is nil")
+		return errors.New("VMContainer is nil")
+	}
 	vmc.Swapper.Terminate()
 	vmc.PhysicalPMemory.Terminate()
 	vmc.MemoryPages = nil
@@ -156,6 +160,7 @@ func (vmc *VMContainer) Terminate() {
 	vmc.FreePhysicalMemory = nil
 	vmc.UsedPhysicalMemory = nil
 	vmc.LRUCache = nil
+	return nil
 }
 
 func (vmc *VMContainer) GetNumberFreePages() uint32 {
