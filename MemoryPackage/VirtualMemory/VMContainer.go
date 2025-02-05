@@ -14,13 +14,14 @@ const (
 	PageStatus_Active = 0x0001
 	PageStatus_OnDisk = 0x0002
 	PageStatus_Locked = 0x0004
+	MaxSwapPages	= 4
 )
 
 type VMContainer struct {
 	MemoryPages      []VMPage
 	MemoryMap        []MemoryMap.MemoryMapRegion
 	Swapper          *Swapper.SwapperContainer
-	PhysicaklPMemory *PhysicalMemory.PhysicalMemoryContainer
+	PhysicalPMemory *PhysicalMemory.PhysicalMemoryContainer
 	FreeVirtualPages *list.List
 	UsedVirtualPages *list.List
 	LRUCache         *list.List
@@ -59,6 +60,16 @@ func (vmc *VMContainer) PageIsNotActive(page uint32) {
 }
 func (vmc *VMContainer) PageIsNotLocked(page uint32) {
 	vmc.MemoryPages[page].Status &= ^PageStatus_Locked
+}
+func ListFindUint32(l *list.List, v uint32) *list.Element {
+	for l := l.Front();
+		l != nil;
+		l.Next() {
+		if l.Value.(uint32) == v {
+			return l
+		}
+	}
+	return nil
 }
 
 func VirtualMemoryInitialize(
@@ -105,17 +116,17 @@ func VirtualMemoryInitialize(
 	if err != nil {
 		return nil, err
 	}
-	vmc.PhysicaklPMemory = pmc
+	vmc.PhysicalPMemory = pmc
 	return &vmc, nil
 }
 
 func (vmc *VMContainer) Terminate() {
 	vmc.Swapper.Terminate()
-	vmc.PhysicaklPMemory.Terminate()
+	vmc.PhysicalPMemory.Terminate()
 	vmc.MemoryPages = nil
 	vmc.MemoryMap = nil
 	vmc.Swapper = nil
-	vmc.PhysicaklPMemory = nil
+	vmc.PhysicalPMemory = nil
 	vmc.FreeVirtualPages = nil
 	vmc.UsedVirtualPages = nil
 	vmc.LRUCache = nil
@@ -132,12 +143,7 @@ func (vmc *VMContainer) GetNumberUsedPages() uint32 {
 func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 	// Make sure we enough free pages
 	if vmc.GetNumberFreePages() < num {
-		ok := vmc.SwapOldPages()
-		// Nope, try to make some byh swapping some out
-		if !ok {
-			// Not possible
-			return nil, errors.New("Failed to allocate virtual pages")
-		}
+		vmc.SwapOldPages()
 		// Try again
 		if vmc.GetNumberFreePages() < num {
 			return nil, errors.New("Failed to allocate virtual pages")
@@ -162,30 +168,92 @@ func (vmc *VMContainer) ReturnNVirtualPages(pages *list.List) error {
 		page := page.Value.(uint32)
 		vmc.PageIsNotActive(page)
 		vmc.FreeVirtualPages.PushBack(page)
-		for elm := vmc.UsedVirtualPages.Front(); elm != nil; elm = elm.Next() {
-			if elm.Value.(uint32) == page {
-				vmc.UsedVirtualPages.Remove(elm)
-				break
-			}
-		}
+		elm := ListFindUint32(vmc.UsedVirtualPages, page)
+		vmc.UsedVirtualPages.Remove(elm)
 	}
 	return nil
 }
 
 func (vmc *VMContainer) SwapOutPage(page uint32) error {
-
+	if !vmc.IsPageActive(page) {
+		return errors.New("Page is not active")
+	}
+	if vmc.IsPageOnDisk(page) {
+		return errors.New("Page is already on disk")
+	}
+	vmc.PageIsOnDisk(page
+	pp := vmc.MemoryPages[page].PhysicalPage
+	bp, err := vmc.PhysicalPMemory.ReadPhysicalPage(pp)
+	if err != nil {
+		return err
+	}
+	err = vmc.Swapper.SwapOutPage(page, bp)
+	if err != nil {
+		return err
+	}
+	vmc.FreeVirtualPages.PushBack(page)
+	elm := ListFindUint32(vmc.UsedVirtualPages, page)
+	vmc.UsedVirtualPages.Remove(elm)
+	return nil
 }
 
-func (vmc *VMContainer) SwapOldPages() bool {
-
+func (vmc *VMContainer) SwapOldPages() {
+	if vmc.UsedVirtualPages.Len() > MaxSwapPages &&
+		vmc.LRUCache.Len() > MaxSwapPages{
+		// We enough to swap out MaxSwapPages to make extra room
+		// Swap out MaxSwapPages oldest pages
+		for i := 0; i < MaxSwapPages; i++ {
+			newPage := vmc.LRUCache.Back().Value.(uint32)
+			err := vmc.SwapOutPage(newPage)
+			if err != nil {
+				panic(err)
+			}
+			vmc.LRUCache.Remove(vmc.LRUCache.Back())
+		}
+	} else {
+		// Not enough room, just swap out the oldest page
+		newPage := vmc.LRUCache.Back().Value.(uint32)
+		err := vmc.SwapOutPage(newPage)
+		if err != nil {
+			panic(err)
+		}
+		vmc.LRUCache.Remove(vmc.LRUCache.Back())
+	}
 }
 
 func (vmc *VMContainer) SwapInPage(page uint32) error {
+	if !vmc.IsPageActive(page) {
+		return errors.New("Page is not active")
+	}
+	if !vmc.IsPageOnDisk(page) {
+		return errors.New("Page is not on disk")
+	}
+	if vmc.FreeVirtualPages.Len() == 0 {
+		vmc.SwapOldPages()
+		if vmc.FreeVirtualPages.Len() == 0 {
+			return errors.New("Failed to swap in page")
+		}
+	}
 
 }
 
 func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
-
+	if !vmc.IsPageActive(page) {
+		return nil, errors.New("Page is not active")
+	}
+	if !vmc.IsPageOnDisk(page) {
+		err := vmc.SwapInPage(page)
+		if err != nil {
+			return nil, err
+		}
+	}
+	pp := vmc.MemoryPages[page].PhysicalPage
+	bp, err := vmc.PhysicaklPMemory.ReadPhysicalPage(pp)
+	if err != nil {
+		return nil, err
+	}
+	vmc.LRUCache.PushBack(page)
+	return bp, nil
 }
 
 func (vnc *VMContainer) WritePage(page uint32, buffer []byte) error {
