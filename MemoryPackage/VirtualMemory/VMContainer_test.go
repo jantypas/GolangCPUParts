@@ -2,10 +2,12 @@ package VirtualMemory
 
 import (
 	"GolangCPUParts/Configuration"
+	"GolangCPUParts/RemoteLogging"
 	"testing"
 )
 
 func TestListFindUint32(t *testing.T) {
+	RemoteLogging.LogInit("test")
 	cfg := Configuration.ConfigObject{}
 	cfg.Initialize("Test")
 	vmc, err := VirtualMemoryInitialize(cfg, "TEST-MAP")

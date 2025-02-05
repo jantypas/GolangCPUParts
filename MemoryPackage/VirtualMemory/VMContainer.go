@@ -8,6 +8,7 @@ import (
 	"GolangCPUParts/RemoteLogging"
 	"container/list"
 	"errors"
+	"strconv"
 )
 
 const (
@@ -104,7 +105,7 @@ func VirtualMemoryInitialize(
 	vmc := VMContainer{}
 	// Create the overall page map -- for each physical page, createa  virtual one
 	totalPagesNeeded := pmc.GetTotalPages()
-	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Total pages needed: "+string(totalPagesNeeded))
+	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Total pages needed: "+strconv.Itoa(int(totalPagesNeeded)))
 	vmc.MemoryPages = make([]VMPage, totalPagesNeeded)
 	vmc.UsedVirtualPages = list.New()
 	vmc.FreeVirtualPages = list.New()
@@ -203,23 +204,23 @@ func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 		vmc.MemoryPages[newVPage].Status = PageStatus_Active | PageStatus_OnDisk
 		lst.PushBack(newVPage)
 	}
-	RemoteLogging.LogEvent("INFO", "AllocateNVirtualPages", "Allocated "+string(num)+" virtual pages")
+	RemoteLogging.LogEvent("INFO", "AllocateNVirtualPages", "Allocated "+strconv.Itoa(int(num))+" virtual pages")
 	return lst, nil
 }
 
 func (vmc *VMContainer) ReturnNVirtualPages(pages *list.List) error {
-	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returning "+string(pages.Len())+" virtual pages")
+	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returning "+strconv.Itoa(int(pages.Len()))+" virtual pages")
 	for page := pages.Front(); page != nil; page.Next() {
 		page := page.Value.(uint32)
 		vmc.PageIsNotActive(page)
 		MoveUsedToFree(vmc.UsedVirtualPages, vmc.FreeVirtualPages, page)
 	}
-	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returned "+string(pages.Len())+" virtual pages")
+	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returned "+strconv.Itoa(int(pages.Len()))+" virtual pages")
 	return nil
 }
 
 func (vmc *VMContainer) SwapOutPage(page uint32) error {
-	RemoteLogging.LogEvent("INFO", "SwapOutPage", "Swapping out page "+string(page))
+	RemoteLogging.LogEvent("INFO", "SwapOutPage", "Swapping out page "+strconv.Itoa(int(page)))
 	if !vmc.IsPageActive(page) {
 		RemoteLogging.LogEvent("ERROR", "SwapOutPage", "Page is not active")
 		return errors.New("Page is not active")
@@ -244,7 +245,7 @@ func (vmc *VMContainer) SwapOutPage(page uint32) error {
 	return nil
 }
 
-func (vmc *VMContainer) SwapOldPages() {
+func (vmc *VMContainer) SwapOldPages() error {
 	RemoteLogging.LogEvent("INFO", "SwapOldPages", "Swapping out old pages")
 	if vmc.UsedVirtualPages.Len() > MaxSwapPages &&
 		vmc.LRUCache.Len() > MaxSwapPages {
@@ -267,11 +268,13 @@ func (vmc *VMContainer) SwapOldPages() {
 		}
 		vmc.LRUCache.Remove(vmc.LRUCache.Back())
 		RemoteLogging.LogEvent("INFO", "SwapOldPages", "Swapped out oldest page")
+		return nil
 	}
+	return nil
 }
 
 func (vmc *VMContainer) SwapInPage(page uint32) error {
-	RemoteLogging.LogEvent("INFO", "SwapInPage", "Swapping in page "+string(page))
+	RemoteLogging.LogEvent("INFO", "SwapInPage", "Swapping in page "+strconv.Itoa(int(page)))
 	if !vmc.IsPageActive(page) {
 		RemoteLogging.LogEvent("ERROR", "SwapInPage", "Page is not active")
 		return errors.New("Page is not active")
@@ -297,12 +300,12 @@ func (vmc *VMContainer) SwapInPage(page uint32) error {
 	}
 	vmc.MemoryPages[page].PhysicalPage = newPPage
 	vmc.PageIsNotOnDisk(page)
-	RemoteLogging.LogEvent("INFO", "SwapInPage", "Swapped in page "+string(page))
+	RemoteLogging.LogEvent("INFO", "SwapInPage", "Swapped in page "+strconv.Itoa(int(page)))
 	return nil
 }
 
 func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
-	RemoteLogging.LogEvent("INFO", "ReadPage", "Reading page "+string(page))
+	RemoteLogging.LogEvent("INFO", "ReadPage", "Reading page "+strconv.Itoa(int(page)))
 	if !vmc.IsPageActive(page) {
 		RemoteLogging.LogEvent("ERROR", "ReadPage", "Page is not active")
 		return nil, errors.New("Page is not active")
@@ -318,18 +321,21 @@ func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	vmc.LRUCache.PushBack(page
-	RemoteLogging.LogEvent("INFO", "ReadPage", "Read page "+string(page))
+	vmc.LRUCache.PushBack(page)
+	RemoteLogging.LogEvent("INFO", "ReadPage", "Read page "+strconv.Itoa(int(page)))
 	return bp, nil
 }
 
 func (vmc *VMContainer) WritePage(page uint32, buffer []byte) error {
+	RemoteLogging.LogEvent("INFO", "WritePage", "Writing page "+strconv.Itoa(int(page)))
 	if !vmc.IsPageActive(page) {
-		return errors.New("Page is not active")
+		RemoteLogging.LogEvent("ERROR", "WritePage", "Page is not active")
+		errors.New("Page is not active")
 	}
 	if !vmc.IsPageOnDisk(page) {
 		err := vmc.SwapInPage(page)
 		if err != nil {
+			RemoteLogging.LogEvent("ERROR", "WritePage", "Failed to swap in page")
 			return err
 		}
 	}
@@ -342,6 +348,7 @@ func (vmc *VMContainer) WritePage(page uint32, buffer []byte) error {
 }
 
 func (vmc *VMContainer) ReadAddress(addr uint64) (byte, error) {
+	RemoteLogging.LogEvent("INFO", "ReadAddress", "Reading address "+strconv.Itoa(int(addr)))
 	page := addr / PhysicalMemory.PageSize
 	offset := addr % PhysicalMemory.PageSize
 	buffer, err := vmc.ReadPage(uint32(page))
@@ -353,6 +360,7 @@ func (vmc *VMContainer) ReadAddress(addr uint64) (byte, error) {
 }
 
 func (vmc *VMContainer) WriteAddress(addr uint64, value byte) error {
+	RemoteLogging.LogEvent("INFO", "WriteAddress", "Writing address "+strconv.Itoa(int(addr)))
 	page := addr / PhysicalMemory.PageSize
 	offset := addr % PhysicalMemory.PageSize
 	bp, err := vmc.ReadPage(uint32(page))
