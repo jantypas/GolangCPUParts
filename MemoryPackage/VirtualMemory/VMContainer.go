@@ -92,13 +92,13 @@ func MoveFreeToUsed(freelst *list.List, usedlst *list.List, pg uint32) {
 	usedlst.PushBack(pg)
 }
 
-func MoveUsedToFree(freelst *list.List, usedlst *list.List, pg uint32) {
-	elm := ListFindUint32(usedlst, pg)
+func MoveUsedToFree(usedlist *list.List, freelst *list.List, pg uint32) {
+	elm := ListFindUint32(usedlist, pg)
 	if elm == nil {
 		panic("Can't find page in used list")
 		return
 	}
-	usedlst.Remove(elm)
+	usedlist.Remove(elm)
 	freelst.PushBack(pg)
 }
 
@@ -232,14 +232,12 @@ func (vmc *VMContainer) AllocateNVirtualPages(num uint32) (*list.List, error) {
 }
 
 func (vmc *VMContainer) ReturnNVirtualPages(pages *list.List) error {
-	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returning "+strconv.Itoa(int(pages.Len()))+" virtual pages")
-	DebugList("Free Virtual Pages", vmc.FreeVirtualPages)
-	DebugList("Used virtual pages", vmc.UsedVirtualPages)
-	for page := pages.Front(); page != nil; page.Next() {
+	DebugList("ReturnPages Used virtual pages", vmc.UsedVirtualPages)
+	for page := pages.Front(); page != nil; page = page.Next() {
 		newpage := page.Value.(uint32)
 		ppage := vmc.MemoryPages[newpage].PhysicalPage
 		MoveUsedToFree(vmc.UsedVirtualPages, vmc.FreeVirtualPages, newpage)
-		MoveFreeToUsed(vmc.UsedPhysicalMemory, vmc.FreePhysicalMemory, ppage)
+		MoveUsedToFree(vmc.UsedPhysicalMemory, vmc.FreePhysicalMemory, ppage)
 		vmc.PageIsNotActive(newpage)
 	}
 	RemoteLogging.LogEvent("INFO", "ReturnNVirtualPages", "Returned "+strconv.Itoa(int(pages.Len()))+" virtual pages")

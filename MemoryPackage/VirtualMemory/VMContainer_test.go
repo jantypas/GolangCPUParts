@@ -55,6 +55,7 @@ func TestVirtualMemoryAllocate(t *testing.T) {
 	}
 	err = vmc.ReturnNVirtualPages(lst)
 	if err != nil {
+		t.Error(err)
 	}
 	fmt.Println("Returned Pages " + strconv.Itoa(int(vmc.GetNumberUsedPages())))
 	vmc.Terminate()
