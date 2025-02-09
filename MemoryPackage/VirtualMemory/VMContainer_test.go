@@ -60,3 +60,35 @@ func TestVirtualMemoryAllocate(t *testing.T) {
 	fmt.Println("Returned Pages " + strconv.Itoa(int(vmc.GetNumberUsedPages())))
 	vmc.Terminate()
 }
+
+func TestVirtualMemoryWriteReadPage(t *testing.T) {
+	RemoteLogging.LogInit("test")
+	cfg := Configuration.ConfigObject{}
+	cfg.Initialize("Test")
+	vmc, err := VirtualMemoryInitialize(cfg, "TEST-MAP")
+	if err != nil {
+		t.Error(err)
+	}
+	lst, err := vmc.AllocateNVirtualPages(5)
+	if err != nil {
+		t.Error(err)
+	}
+	if lst.Len() != 5 {
+		t.Error("Failed to allocate correct number of pages")
+	}
+	fmt.Println("Allocated Pages " + strconv.Itoa(int(vmc.GetNumberUsedPages())))
+	for l := lst.Front(); l != nil; l = l.Next() {
+		fmt.Println("Page " + strconv.Itoa(int(l.Value.(uint32))))
+	}
+	err = vmc.WriteAddress(14*4096, 0x12)
+	if err != nil {
+		t.Error(err)
+	}
+	val, err := vmc.ReadAddress(14 * 4096)
+	if err != nil {
+		t.Error(err)
+	}
+	if val != 0x12 {
+		t.Error("Wrong value read")
+	}
+}
