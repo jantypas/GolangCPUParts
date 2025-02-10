@@ -2,6 +2,7 @@ package Configuration
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -30,7 +31,7 @@ type IODescriptor struct {
 }
 
 type ConfigurationDescriptor struct {
-	CPU    CPUDescriptor      `json:"cpu"`
+	CPU    CPUDescriptor     `json:"cpu"`
 	Memory []MemoryDescriptor `json:"memory"`
 	IO     []IODescriptor     `json:"IO"`
 }
@@ -50,6 +51,17 @@ type ConfigObject struct {
 	Conifguration []SystemConfigs `json:"configuration"`
 }
 
+var MemoryTypeNames = []string{
+	"Empty",
+	"Virtual-RAM",
+	"Physical-RAM",
+	"BUFFER-RAM",
+	"Kernel-RAM",
+	"I/O-RAM",
+	"Physical-ROM",
+}
+
+var MemoryTypeValues = map[string]uint64{}
 func MockConfig() ([]byte, error) {
 	cfg := ConfigObject{
 		Version: 1,
@@ -68,20 +80,20 @@ func MockConfig() ([]byte, error) {
 					},
 					Memory: []MemoryDescriptor{
 						MemoryDescriptor{
-							Key:        0,
-							Comment:    "2MB of RAM",
-							Base:       0x0000_0000_0000_0000,
-							Size:       0x0000_0000_001F_FFFF,
-							MemoryType: "Physical-RAM",
-							Parameters: "",
+							Key:        	0,
+							Comment:    	"2MB of RAM",
+							StartAddress:   0x0000_0000_0000_0000,
+							EndAddress:     0x0000_0000_001F_FFFF,
+							MemoryType: 	"Physical-RAM",
+							Parameters: 	"",
 						},
 						{
-							Key:        1,
-							Comment:    "Kernel RAM",
-							Base:       0x0000_0000_0002_0000,
-							Size:       0x0000_0000_0002_FFFF,
-							MemoryType: "Kernel-RAM",
-							Parameters: "",
+							Key:        	1,
+							Comment:    	"Kernel RAM",
+							StartAddress:   0x0000_0000_0002_0000,
+							EndAddress:    	0x0000_0000_0002_FFFF,
+							MemoryType: 	"Kernel-RAM",
+							Parameters: 	"",
 						},
 					},
 					IO: []IODescriptor{
@@ -197,11 +209,11 @@ func MockConfig() ([]byte, error) {
 					},
 					Memory: []MemoryDescriptor{
 						MemoryDescriptor{
-							Key:        0,
-							Comment:    "64KB of RAM",
-							Base:       0x0000_0000_0000_0000,
-							Size:       0x0000_0000_0001_FFFF,
-							MemoryType: "Physical-RAM",
+							Key:        	0,
+							Comment:    	"64KB of RAM",
+							StartAddress:	0x0000_0000_0000_0000,
+							EndAddress:     0x0000_0000_0001_FFFF,
+							MemoryType: 	"Physical-RAM",
 						},
 					},
 					IO: []IODescriptor{
@@ -268,28 +280,28 @@ func MockConfig() ([]byte, error) {
 					},
 					Memory: []MemoryDescriptor{
 						MemoryDescriptor{
-							Key:        0,
-							Comment:    "64MB of RAM",
-							Base:       0x0000_0000_0000_0000,
-							Size:       0x0000_0000_03FFF_FFFF,
-							MemoryType: "Virtual-RAM",
-							Parameters: "",
+							Key:        	0,
+							Comment:    	"64MB of RAM",
+							StartAddress:   0x0000_0000_0000_0000,
+							EndAddress:     0x0000_0000_03FFF_FFFF,
+							MemoryType: 	"Virtual-RAM",
+							Parameters: 	"",
 						},
 						{
-							Key:        1,
-							Comment:    "Kernel 16MB RAM",
-							Base:       0x0000_0000_0400_0000,
-							Size:       0x0000_0000_04FF_FFFF,
-							MemoryType: "Kernel-RAM",
-							Parameters: "",
+							Key:        	1,
+							Comment:    	"Kernel 16MB RAM",
+							StartAddress:   0x0000_0000_0400_0000,
+							Size:       	0x0000_0000_04FF_FFFF,
+							MemoryType: 	"Kernel-RAM",
+							Parameters: 	"",
 						},
 						{
-							Key:        2,
-							Comment:    "I/O RAM 16MB",
-							Base:       0x0000_0000_0500_0000,
-							Size:       0x0000_0000_05FF_FFFF,
-							MemoryType: "I/O-RAM",
-							Parameters: "",
+							Key:        	2,
+							Comment:    	"I/O RAM 16MB",
+							StartAddress:   0x0000_0000_0500_0000,
+							EndAddress:   	0x0000_0000_05FF_FFFF,
+							MemoryType: 	"I/O-RAM",
+							Parameters: 	"",
 						},
 					},
 					IO: []IODescriptor{
@@ -373,11 +385,27 @@ func MockConfig() ([]byte, error) {
 	return s, nil
 }
 
+func checkMemoryType(s string) bool {
+	for _, v := range MemoryTypeNames {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 func LoadConfiguration(s []byte) (*ConfigObject, error) {
 	cfg := ConfigObject{}
 	err := json.Unmarshal([]byte(s), &cfg)
 	if err != nil {
 		return nil, err
+	}
+	for i, v := range cfg.Conifguration {
+		// Verify the memory type names are correct
+		s := v.Description.Memory[0].MemoryType
+		if !checkMemoryType(s) {
+			return nil, errors.New("Invalid memory type "+s+" in configuration"
+		}
 	}
 	return &cfg, nil
 }
@@ -392,7 +420,7 @@ func (cfg *ConfigObject) Dump() {
 	fmt.Println(string(s))
 }
 
-func (cfg *ConfigObject) GetConfig(s string) *SystemConfigs {
+func (cfg *ConfigObject) GetConfigByName(s string) *SystemConfigs {
 	for _, v := range cfg.Conifguration {
 		if v.Name == s {
 			return &v

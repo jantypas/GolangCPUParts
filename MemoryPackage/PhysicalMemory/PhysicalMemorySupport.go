@@ -2,295 +2,162 @@ package PhysicalMemory
 
 import (
 	"GolangCPUParts/Configuration"
-	"GolangCPUParts/RemoteLogging"
 	"errors"
-	"strconv"
 )
 
 const (
-	PageSize = 4096
-
+	PhysicalPageSize       = 4096
 	MemoryType_Empty       = 0
 	MemoryType_VirtualRAM  = 1
 	MemoryType_PhysicalRAM = 2
-	MemoryType_PhysicalIO  = 3
-	MemoryType_Buffer      = 4
-	MemoryType_Kernel      = 5
-	MemoryType_PhysicalROM = 6
+	MemoryType_BufferRAM   = 3
+	MemoryType_KernelRAM   = 4
+	MemoryType_IORAM       = 5
+	MemoryType_ROM         = 6
+
+	Protection_NoAccess   = 0
+	Protection_CanRead    = 0x1
+	Protection_CanWrite   = 0x2
+	Protection_CanExecute = 0x4
+	Protection_NeedSystem = 0x8
 )
 
-// PhysicalBlock
-// The physical memory block contains a block of bytes for a physical memory region
-type PhysicalBlock struct {
-	Buffer      []byte // The buffer of bytes that contain data
-	NumPages    uint32 // Number of pages in the buffer
-	StartPage   uint32 // Where does our material start (on a page)
-	SegmentType int
-	Key         uint16
+type PhysicalMemoryBlock struct {
+	Buffer       []byte
+	StartAddress uint64
+	EndAddress   uint64
+	StartPage    uint32
+	EndPage      uint32
+	Protection   uint64
+	MemoryType   int
+	NumPages     int
+	Key          int
 }
 
-// PhysicalMemoryContainer
-// THe PhysicalMemoryContainer contains all PhysicalMemoryBlocks
-type PhysicalMemoryContainer struct {
-	SystemDesc     Configuration.ConfigurationDescriptor
-	PhysicalBlocks []PhysicalBlock
+type PhysicalMemoryManager struct {
+	Blocks    []PhysicalMemoryBlock
+	NumBlocks int
 }
 
-// PhysicalMemoryInitialize
-// Given a memory map, build the physical memory blocks as a container and returns it
-func PhysicalMemoryInitialize(cfg Configuration.ConfigObject, name string) (*PhysicalMemoryContainer, error) {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryInitialize", "Initializing physical memory")
-	// See if the configuration exists by name
-	sd := cfg.GetConfig(name)
+func PhysicalMemoryInitialize(
+	cfg *Configuration.ConfigObject,
+	name string) (*PhysicalMemoryManager, error) {
+	// Make sure config is not null -- if it is, we have an invalid config name
+	if cfg == nil {
+		return nil, errors.New("Config object is nil")
+	}
+	sd := cfg.GetConfigByName(name)
 	if sd == nil {
-		return nil, errors.New("No configuration found for " + name)
+		return nil, errors.New("Config not found")
 	}
-	// If it exists, get its memory regions
-	mr := sd.Description.Memory
-	pmc := &PhysicalMemoryContainer{}
-	pmc.PhysicalBlocks = make([]PhysicalBlock, len(mr))
-	totalBytes := uint64(0)
-	totalPages := 0
-	// For each item in the map, build an object
-	for i := range mr {
-		pmc.PhysicalBlocks[i].Buffer = make([]byte, mr[i].EndAddress-mr[i].StartAddress)
-		pmc.PhysicalBlocks[i].NumPages = uint32(mr[i].EndAddress-mr[i].StartAddress) / 4096
-		pmc.PhysicalBlocks[i].StartPage = uint32(mr[i].StartAddress) / PageSize
-		pmc.PhysicalBlocks[i].Key = uint16(mr[i].Key)
-		switch mr[i].MemoryType {
-		case "Virtual-RAM":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_VirtualRAM
-		case "Physical-RAM":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_PhysicalRAM
-		case "Physical-IO":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_PhysicalIO
-		case "Physical-Buffer":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_Buffer
+	// Get access to the configured memory regions
+	memoryRegions := sd.Description.Memory
+	tatalRegions := len(memoryRegions)
+	// At least one must be defined
+	if tatalRegions == 0 {
+		return nil, errors.New("No memory regions found")
+	}
+	// Make the container for all the blocks
+	pmc := PhysicalMemoryManager{}
+	pmc.NumBlocks = tatalRegions
+	pmc.Blocks = make([]PhysicalMemoryBlock, tatalRegions)
+
+	for idx, memoryRegion := range memoryRegions {
+		pmc.Blocks[idx].StartAddress = memoryRegion.StartAddress
+		pmc.Blocks[idx].EndAddress = memoryRegion.EndAddress
+		pmc.Blocks[idx].Buffer = make([]byte, memoryRegion.EndAddress-memoryRegion.StartAddress)
+		pmc.Blocks[idx].NumPages = int(memoryRegion.EndAddress-memoryRegion.StartAddress) / PhysicalPageSize
+		pmc.Blocks[idx].StartPage = uint32(pmc.Blocks[idx].StartAddress / PhysicalPageSize)
+		pmc.Blocks[idx].EndPage = uint32(pmc.Blocks[idx].EndAddress / PhysicalPageSize)
+		pmc.Blocks[idx].Key = idx
+		switch memoryRegion.MemoryType {
 		case "Empty":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_Empty
-		case "Kernel":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_Kernel
+			{
+				pmc.Blocks[idx].MemoryType = 0
+			}
+		case "Swap":
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_Empty
+				pmc.Blocks[idx].Protection = Protection_NoAccess
+			}
+		case "Virtual-RAM":
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_VirtualRAM
+				pmc.Blocks[idx].Protection = Protection_CanWrite | Protection_CanRead | Protection_CanExecute
+			}
+		case "Physical-RAM":
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_PhysicalRAM
+				pmc.Blocks[idx].Protection = Protection_CanWrite | Protection_CanRead | Protection_CanExecute
+			}
+		case "Buffer-RAM":
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_BufferRAM
+				pmc.Blocks[idx].Protection = Protection_CanWrite | Protection_CanRead | Protection_CanExecute
+			}
+		case "Kernel-RAM":
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_KernelRAM
+				pmc.Blocks[idx].Protection =
+					Protection_CanWrite | Protection_CanRead | Protection_CanExecute | Protection_NeedSystem
+			}
 		case "Physical-ROM":
-			pmc.PhysicalBlocks[i].SegmentType = MemoryType_PhysicalROM
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_ROM
+				pmc.Blocks[idx].Protection = Protection_CanRead | Protection_CanExecute
+			}
+		case "Physical-IORAM":
+			{
+				pmc.Blocks[idx].MemoryType = MemoryType_IORAM
+				pmc.Blocks[idx].Protection = Protection_CanWrite | Protection_CanRead | Protection_CanExecute
+			}
 		default:
-			return nil, errors.New("Invalid memory type " + mr[i].MemoryType)
-		}
-		totalBytes += mr[i].EndAddress - mr[i].StartAddress
-		totalPages += int(mr[i].EndAddress-mr[i].StartAddress) / PageSize
-	}
-	msg := "Initialized physical memory with " + strconv.Itoa(int(totalBytes)) +
-		" bytes and " + strconv.Itoa(totalPages) + " pages"
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryInitialize", msg)
-	return pmc, nil
-}
-
-// Terminate
-// Given a memory container, terminate everything
-func (pmc *PhysicalMemoryContainer) Terminate() error {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryTerminate", "Terminating physical memory")
-	if pmc == nil {
-		return errors.New("Physical memory is nil")
-	}
-	for i := range pmc.PhysicalBlocks {
-		pmc.PhysicalBlocks[i].Buffer = nil
-	}
-	return nil
-}
-
-func (pmc *PhysicalMemoryContainer) GetTotalPages() uint32 {
-	total := uint32(0)
-	for i := range pmc.PhysicalBlocks {
-		total += pmc.PhysicalBlocks[i].NumPages
-	}
-	return total
-}
-
-// GetRegionByKey
-// Retrieves a PhysicalBlock from the PhysicalBlocks slice that corresponds to the given key in the MyMap
-// slice.
-// It returns a pointer to the matched PhysicalBlock, or nil if no match is found.
-func (pmc *PhysicalMemoryContainer) GetRegionByKey(key uint16) *PhysicalBlock {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryGetBlock", "Getting block for key "+
-		strconv.Itoa(int(key)))
-	// Walk the map looking for a key
-	for i := range pmc.SystemDesc.Memory {
-		if pmc.SystemDesc.Memory[i].Key == int(key) {
-			// Return it
-			return &pmc.PhysicalBlocks[i]
+			{
+				return nil, errors.New("Unknown memory type")
+			}
 		}
 	}
-	// No key found
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryGetBlock", "No block found for key "+
-		strconv.Itoa(int(key)))
-	return nil
+	return &pmc, nil
 }
 
-// GetRegionByAddress
-// Retrieves a PhysicalBlock corresponding to the provided address in the memory map,
-// or nil if not found.
-func (pmc *PhysicalMemoryContainer) GetRegionByAddress(addr uint64) *PhysicalBlock {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryGetBlock", "Getting block for address "+
-		strconv.Itoa(int(addr)))
-	bl := MemoryMap.FindSegment(pmc.MyMap, addr)
-	if bl != nil {
-		return pmc.GetRegionByKey(bl.Key)
+func (pmc *PhysicalMemoryManager) Terminate() {
+	for _, block := range pmc.Blocks {
+		block.Buffer = nil
 	}
-	return nil
 }
 
-// ReadAddress retrieves a byte from the physical memory at the specified address.
-// Returns the byte and an error if the address is invalid or not mapped.
-func (pmc *PhysicalMemoryContainer) ReadPhysicalAddress(addr uint64) (byte, error) {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryReadAddress", "Reading address "+
-		strconv.Itoa(int(addr)))
-	// Compute the block by address
-	bl := pmc.GetRegionByAddress(addr)
-	if bl == nil {
-		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryReadAddress", "Invalid address "+
-			strconv.Itoa(int(addr)))
-		return 0, nil
-	}
-	// Compute the address in the buffer
-	page := uint32(addr / PageSize)
-	if page > bl.NumPages {
-		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryReadAddress", "Invalid address "+
-			strconv.Itoa(int(addr)))
-	}
-	newAddr := (page - bl.StartPage) * PageSize
-	return bl.Buffer[newAddr], nil
-}
-
-// WriteAddress writes a byte of data to the specified physical memory address.
-// Returns an error if the address is invalid or not writable.
-func (pmc *PhysicalMemoryContainer) WritePhysicalAddress(addr uint64, data byte) error {
-	RemoteLogging.LogEvent("INFO", "PhysicalMemoryWriteAddress", "Writing address "+
-		strconv.Itoa(int(addr)))
-	// Compute the block by address
-	bl := pmc.GetRegionByAddress(addr)
-	if bl == nil {
-		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWriteAddress", "Invalid address "+
-			strconv.Itoa(int(addr)))
-		return nil
-	}
-	// Update buffer
-	page := uint32(addr / PageSize)
-	if page-bl.StartPage > bl.NumPages {
-		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWriteAddress", "Invalid address "+
-			strconv.Itoa(int(addr)))
-		return nil
-	}
-	newAddr := (page - bl.StartPage) * PageSize
-	bl.Buffer[newAddr] = data
-	return nil
-}
-
-// ReadPage retrieves the data of a physical memory page specified by its page number.
-// Returns the page as a byte slice and an error if the page is invalid or not mapped.
-func (pmc *PhysicalMemoryContainer) ReadPhysicalPage(page uint32) ([]byte, error) {
-	bl := pmc.GetRegionByAddress(uint64(page) * PageSize)
-	if bl == nil {
-		return nil, errors.New("Invalid page")
-	}
-	newPage := page - bl.StartPage
-	return bl.Buffer[newPage*PageSize : (newPage+1)*PageSize], nil
-}
-
-// WritePage
-// Write an entire page of memory to the buffer
-func (pmc *PhysicalMemoryContainer) WritePhysicalPage(page uint32, data []byte) error {
-	if len(data) != PageSize {
-		RemoteLogging.LogEvent("ERROR", "PhysicalMemoryWritePage", "Invalid data length ")
-		return errors.New(
-			"WritePage: Data length must be equal to page size (" +
-				strconv.Itoa(PageSize) + ")")
-	}
-	bl := pmc.GetRegionByAddress(uint64(page) * PageSize)
-	if bl == nil {
-		return errors.New("Invalid page")
-	}
-	newPage := page - bl.StartPage
-	copy(bl.Buffer[newPage*PageSize:newPage*PageSize+PageSize], data)
-	return nil
-}
-
-func (pmc *PhysicalMemoryContainer) GetRegionByTag(tag string) *PhysicalBlock {
-	for i := range pmc.MyMap {
-		if pmc.MyMap[i].Tag == tag {
-			return &pmc.PhysicalBlocks[i]
+func (pmc *PhysicalMemoryManager) GetBlockByKey(idx int) (*PhysicalMemoryBlock, error) {
+	for _, block := range pmc.Blocks {
+		if idx == block.Key {
+			return &block, nil
 		}
 	}
-	return nil
+	return nil, errors.New("Block not found")
 }
 
-func (pmc *PhysicalMemoryContainer) ReadAddress(addr uint64) (byte, error) {
-	bl := MemoryMap.FindSegment(pmc.MyMap, addr)
-	switch bl.SegmentType {
-	case MemoryMap.SegmentTypeEmpty:
-		return 0, errors.New("Invalid address")
-	case MemoryMap.SegmentTypeVirtualRAM:
-		return pmc.ReadPhysicalAddress(addr)
-	case MemoryMap.SegmentTypePhysicalRAM:
-		return pmc.ReadPhysicalAddress(addr)
-	case MemoryMap.SegmentTypePhysicalIO:
-		return 0, errors.New("IO not implemented yet")
-	case MemoryMap.SegmentTypeBuffer:
-		return 0, errors.New("Buffer not implemented yet")
+func (pmc *PhysicalMemoryManager) GetBlockByType(t int) (*PhysicalMemoryBlock, error) {
+	for _, block := range pmc.Blocks {
+		if t == block.MemoryType {
+			return &block, nil
+		}
 	}
-	return 0, errors.New("Invalid address")
+	return nil, errors.New("Block not found")
 }
 
-func (pmc *PhysicalMemoryContainer) WriteAddress(addr uint64, data byte) error {
-	bl := MemoryMap.FindSegment(pmc.MyMap, addr)
-	switch bl.SegmentType {
-	case MemoryMap.SegmentTypeEmpty:
-		return errors.New("Invalid address")
-	case MemoryMap.SegmentTypeVirtualRAM:
-		return pmc.WritePhysicalAddress(addr, data)
-	case MemoryMap.SegmentTypePhysicalRAM:
-		return pmc.WritePhysicalAddress(addr, data)
-	case MemoryMap.SegmentTypePhysicalIO:
-		return errors.New("IO not implemented yet")
-	case MemoryMap.SegmentTypeBuffer:
-		return errors.New("Buffer not implemented yet")
+func (pmc *PhysicalMemoryManager) GetBlockByAddress(addr uint64) (*PhysicalMemoryBlock, error) {
+	for _, block := range pmc.Blocks {
+		if addr >= block.StartAddress && addr <= block.EndAddress {
+			return &block, nil
+		}
 	}
-	return errors.New("Invalid address")
+	return nil, errors.New("Block not found")
 }
 
-func (pmc *PhysicalMemoryContainer) ReadPPage(page uint32) ([]byte, error) {
-	bl := MemoryMap.FindSegment(pmc.MyMap, uint64(page*PageSize))
-	switch bl.SegmentType {
-	case MemoryMap.SegmentTypeEmpty:
-		return nil, errors.New("Invalid address")
-	case MemoryMap.SegmentTypeVirtualRAM:
-		return pmc.ReadPhysicalPage(page)
-	case MemoryMap.SegmentTypePhysicalRAM:
-		return pmc.ReadPhysicalPage(page)
-	case MemoryMap.SegmentTypePhysicalIO:
-		return nil, errors.New("IO not implemented yet")
-	case MemoryMap.SegmentTypeBuffer:
-		return nil, errors.New("Buffer not implemented yet")
+func (pmc *PhysicalMemoryManager) GetBlockByPage(p uint32) (*PhysicalMemoryBlock, error) {
+	for _, block := range pmc.Blocks {
+		if p >= block.StartPage && p <= block.EndPage {
+			return &block, nil
+		}
 	}
-	return nil, errors.New("Invalid address")
-}
-
-func (pmc *PhysicalMemoryContainer) WritePage(page uint32, data []byte) error {
-	bl := MemoryMap.FindSegment(pmc.MyMap, uint64(page*PageSize))
-	switch bl.SegmentType {
-	case MemoryMap.SegmentTypeEmpty:
-		return errors.New("Invalid address")
-	case MemoryMap.SegmentTypeVirtualRAM:
-		return pmc.WritePhysicalPage(page, data)
-	case MemoryMap.SegmentTypePhysicalRAM:
-		return pmc.WritePhysicalPage(page, data)
-	case MemoryMap.SegmentTypePhysicalIO:
-		return errors.New("IO not implemented yet")
-	case MemoryMap.SegmentTypeBuffer:
-		return errors.New("Buffer not implemented yet")
-	}
-	return errors.New("Invalid address")
-}
-
-func (pmc *PhysicalMemoryContainer) GetPageType(page uint32) uint16 {
-	bl := MemoryMap.FindSegment(pmc.MyMap, uint64(page*PageSize))
-	return bl.SegmentType
+	return nil, errors.New("Block not found")
 }
