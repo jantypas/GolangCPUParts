@@ -161,3 +161,45 @@ func (pmc *PhysicalMemoryManager) GetBlockByPage(p uint32) (*PhysicalMemoryBlock
 	}
 	return nil, errors.New("Block not found")
 }
+
+func (pmc *PhysicalMemoryManager) GetNumberPages() uint32 {
+	total := 0
+	for _, block := range pmc.Blocks {
+		total += block.NumPages
+	}
+	return uint32(total)
+}
+
+func (pmc *PhysicalMemoryManager) ReadPage(p uint32) ([]byte, error) {
+	block, err := pmc.GetBlockByPage(p)
+	if err != nil {
+		return nil, err
+	}
+	return block.Buffer[p*PhysicalPageSize : (p+1)*PhysicalPageSize], nil
+}
+
+func (pmc *PhysicalMemoryManager) WritePage(p uint32, data []byte) error {
+	block, err := pmc.GetBlockByPage(p)
+	if err != nil {
+		return err
+	}
+	copy(block.Buffer[p*PhysicalPageSize:], data)
+	return nil
+}
+
+func (pmc *PhysicalMemoryManager) ReadAddress(addr uint64) (uint8, error) {
+	block, err := pmc.GetBlockByAddress(addr)
+	if err != nil {
+		return 0, err
+	}
+	return block.Buffer[addr-block.StartAddress], nil
+}
+
+func (pmc *PhysicalMemoryManager) WriteAddress(addr uint64, data uint8) error {
+	block, err := pmc.GetBlockByAddress(addr)
+	if err != nil {
+		return err
+	}
+	block.Buffer[addr-block.StartAddress] = data
+	return nil
+}
