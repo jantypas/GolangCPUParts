@@ -21,7 +21,7 @@ const (
 
 type VMContainer struct {
 	MemoryPages        map[uint32]VMPage
-	SystemDescriptor   Configuration.SystemConfigs
+	SystemDescriptor   Configuration.ConfigurationDescriptor
 	Swapper            *Swapper.SwapperContainer
 	PhysicalPMemory    *PhysicalMemory.PhysicalMemoryManager
 	FreePhysicalMemory *list.List
@@ -117,56 +117,55 @@ func VirtualMemoryInitialize(
 	cfg Configuration.ConfigObject,
 	name string) (*VMContainer, error) {
 	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Initializing virtual memory")
-	// See if the memory map is valid
-	mr, ok := MemoryMap.ProductionMap[name]
-	if !ok {
-		RemoteLogging.LogEvent("ERROR", "VirtualMemoryInitialize",
-			"Invalid memory map")
-		return nil, errors.New("Invalid memory map")
+	sd := cfg.GetConfigByName(name)
+	if sd == nil {
+		RemoteLogging.LogEvent("ERROR", "VirtualMemoryInitialize", "Failed to get system descriptor")
+		return nil, errors.New("Failed to get system descriptor by that name")
 	}
-	// Create physical memory for our virtual memory
-	pmc, err := PhysicalMemory.PhysicalMemoryInitialize(mr)
-	if err != nil {
-		return nil, err
+	// Get our physical memory ranges
+	mr := sd.Description.Memory
+	if mr == nil {
+		RemoteLogging.LogEvent("ERROR", "VirtualMemoryInitialize", "Failed to get memory ranges")
+		return nil, errors.New("Failed to get memory ranges")
 	}
+	// Make our virtual memory container
 	vmc := VMContainer{}
-	// Create the overall page map -- for each physical page, createa  virtual one
-	totalPagesNeeded := pmc.GetTotalPages()
-	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Total pages needed: "+strconv.Itoa(int(totalPagesNeeded)))
-	vmc.MemoryPages = make([]VMPage, totalPagesNeeded)
-	vmc.UsedVirtualPages = list.New()
-	vmc.FreeVirtualPages = list.New()
-	vmc.FreePhysicalMemory = list.New()
-	vmc.UsedPhysicalMemory = list.New()
-	vmc.LRUCache = list.New()
-	// Special handling for virtual region -- we need to know where these pages are
-	// all other pages should be locked in memory since we can't swap them
-	RemoteLogging.LogEvent("INFO", "AllocateVirtualPage",
-		"Preparing virtual memory")
-	for i := uint32(0); i < totalPagesNeeded; i++ {
-		if pmc.GetPageType(i) == MemoryMap.SegmentTypeVirtualRAM {
-			vmc.FreeVirtualPages.PushBack(i)
-			vmc.FreePhysicalMemory.PushBack(i)
-			vmc.MemoryPages[i] = VMPage{
-				VirutalPage:  i,
-				PhysicalPage: i,
-				Status:       0,
-			}
-		} else {
-			vmc.MemoryPages[i] = VMPage{
-				VirutalPage:  i,
-				PhysicalPage: i,
-				Status:       PageStatus_Locked | PageStatus_Active,
-			}
-		}
-	}
-	// Start the swapper
-	vmc.Swapper, err = Swapper.Swapper_Initialize(cfg.SwapFileNames)
+	// Try to start up physical memory
+	pmc, err := PhysicalMemory.PhysicalMemoryInitialize(cfg, name)
 	if err != nil {
 		return nil, err
 	}
 	vmc.PhysicalPMemory = pmc
-	RemoteLogging.LogEvent("INFO", "VirtualMemoryInitialize", "Virtual memory initialized")
+	// Set up our page menagement lists
+	vmc.UsedPhysicalMemory = list.New()
+	vmc.FreePhysicalMemory = list.New()
+	vmc.UsedVirtualPages = list.New()
+	vmc.FreeVirtualPages = list.New()
+	vmc.LRUCache = list.New()
+	vmc.SystemDescriptor = sd.Description
+	vmc.MemoryPages = make(map[uint32]VMPage)
+	// Get the virtual memory suitable pages from Physical Memory
+	byType, err := pmc.GetBlockByType(PhysicalMemory.MemoryType_VirtualRAM)
+	if err != nil {
+		return nil, err
+	}
+	numVPages := byType.NumPages
+	if numVPages == 0 {
+		RemoteLogging.LogEvent("ERROR", "VirtualMemoryInitialize", "No suitable virtual memory pages found")
+		return nil, errors.New("No suitable virtual memory pages found")
+	}
+	if numVPages > 1024*1024 {
+		RemoteLogging.LogEvent("ERROR", "VirtualMemoryInitialize", "Too many virtual memory pages found")
+		return nil, errors.New("Too many virtual memory pages found")
+	}
+	// Build the virtual paages into the lower 4GB (20-bits) of the map
+	for i := 0; i < numVPages; i++ {
+		vmc.MemoryPages[uint32(i)] =
+			VMPage{uint32(i), i, PageStatus_Active | PageStatus_OnDisk}
+	}
+	// Finally start the swapper
+	vmc.Swapper, err =
+		Swapper.Swapper_Initialize(cfg.GetConfigurationSettings().SwapFileName)
 	return &vmc, nil
 }
 
@@ -179,7 +178,7 @@ func (vmc *VMContainer) Terminate() error {
 	vmc.Swapper.Terminate()
 	vmc.PhysicalPMemory.Terminate()
 	vmc.MemoryPages = nil
-	vmc.MemoryMap = nil
+	vmc.MemoryPages = nil
 	vmc.Swapper = nil
 	vmc.PhysicalPMemory = nil
 	vmc.FreeVirtualPages = nil

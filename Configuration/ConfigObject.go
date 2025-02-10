@@ -429,3 +429,7 @@ func (cfg *ConfigObject) GetConfigByName(s string) *SystemConfigs {
 	}
 	return nil
 }
+
+func (cfg *ConfigObject) GetConfigurationSettings() *ConfigSettings {
+	return &cfg.Settings
+}

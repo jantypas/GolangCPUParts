@@ -196,9 +196,9 @@ func (pmc *PhysicalMemoryManager) ReadPage(p uint32) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err := checkProtections(block.MemoryType, block.Protection)
+	err = checkProtections(block.MemoryType, block.Protection)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	return block.Buffer[p*PhysicalPageSize : (p+1)*PhysicalPageSize], nil
 }
