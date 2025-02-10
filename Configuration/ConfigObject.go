@@ -13,12 +13,12 @@ type CPUDescriptor struct {
 }
 
 type MemoryDescriptor struct {
-	Key        int    `json:"key"`
-	Comment    string `json:"comment"`
-	Base       uint64 `json:"base"`
-	Size       uint64 `json:"size"`
-	MemoryType string `json:"memory_type"`
-	Parameters string `json:"parameters"`
+	Key          int    `json:"key"`
+	Comment      string `json:"comment"`
+	StartAddress uint64 `json:"base"`
+	EndAddress   uint64 `json:"size"`
+	MemoryType   string `json:"memory_type"`
+	Parameters   string `json:"parameters"`
 }
 
 type IODescriptor struct {

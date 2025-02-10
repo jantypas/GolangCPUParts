@@ -1,13 +1,23 @@
 package PhysicalMemory
 
 import (
-	"GolangCPUParts/MemoryPackage/MemoryMap"
+	"GolangCPUParts/Configuration"
 	"GolangCPUParts/RemoteLogging"
 	"errors"
 	"strconv"
 )
 
-const PageSize = 4096
+const (
+	PageSize = 4096
+
+	MemoryType_Empty       = 0
+	MemoryType_VirtualRAM  = 1
+	MemoryType_PhysicalRAM = 2
+	MemoryType_PhysicalIO  = 3
+	MemoryType_Buffer      = 4
+	MemoryType_Kernel      = 5
+	MemoryType_PhysicalROM = 6
+)
 
 // PhysicalBlock
 // The physical memory block contains a block of bytes for a physical memory region
@@ -15,40 +25,61 @@ type PhysicalBlock struct {
 	Buffer      []byte // The buffer of bytes that contain data
 	NumPages    uint32 // Number of pages in the buffer
 	StartPage   uint32 // Where does our material start (on a page)
-	Protections uint64 // Any protection rules
-	SegmentType uint16
+	SegmentType int
 	Key         uint16
 }
 
 // PhysicalMemoryContainer
 // THe PhysicalMemoryContainer contains all PhysicalMemoryBlocks
 type PhysicalMemoryContainer struct {
-	MyMap          []MemoryMap.MemoryMapRegion
+	SystemDesc     Configuration.ConfigurationDescriptor
 	PhysicalBlocks []PhysicalBlock
 }
 
 // PhysicalMemoryInitialize
 // Given a memory map, build the physical memory blocks as a container and returns it
-func PhysicalMemoryInitialize(mmap []MemoryMap.MemoryMapRegion) (*PhysicalMemoryContainer, error) {
+func PhysicalMemoryInitialize(cfg Configuration.ConfigObject, name string) (*PhysicalMemoryContainer, error) {
 	RemoteLogging.LogEvent("INFO", "PhysicalMemoryInitialize", "Initializing physical memory")
+	// See if the configuration exists by name
+	sd := cfg.GetConfig(name)
+	if sd == nil {
+		return nil, errors.New("No configuration found for " + name)
+	}
+	// If it exists, get its memory regions
+	mr := sd.Description.Memory
 	pmc := &PhysicalMemoryContainer{}
-	pmc.PhysicalBlocks = make([]PhysicalBlock, len(mmap))
+	pmc.PhysicalBlocks = make([]PhysicalBlock, len(mr))
 	totalBytes := uint64(0)
 	totalPages := 0
 	// For each item in the map, build an object
-	for i := range mmap {
-		pmc.PhysicalBlocks[i].Buffer = make([]byte, mmap[i].EndAddress-mmap[i].StartAddress)
-		pmc.PhysicalBlocks[i].NumPages = uint32(mmap[i].EndAddress-mmap[i].StartAddress) / 4096
-		pmc.PhysicalBlocks[i].Protections = mmap[i].Permissions
-		pmc.PhysicalBlocks[i].StartPage = uint32(mmap[i].StartAddress) / PageSize
-		pmc.PhysicalBlocks[i].Key = mmap[i].Key
-		pmc.PhysicalBlocks[i].SegmentType = mmap[i].SegmentType
-		totalBytes += mmap[i].EndAddress - mmap[i].StartAddress
-		totalPages += int(mmap[i].EndAddress-mmap[i].StartAddress) / PageSize
+	for i := range mr {
+		pmc.PhysicalBlocks[i].Buffer = make([]byte, mr[i].EndAddress-mr[i].StartAddress)
+		pmc.PhysicalBlocks[i].NumPages = uint32(mr[i].EndAddress-mr[i].StartAddress) / 4096
+		pmc.PhysicalBlocks[i].StartPage = uint32(mr[i].StartAddress) / PageSize
+		pmc.PhysicalBlocks[i].Key = uint16(mr[i].Key)
+		switch mr[i].MemoryType {
+		case "Virtual-RAM":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_VirtualRAM
+		case "Physical-RAM":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_PhysicalRAM
+		case "Physical-IO":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_PhysicalIO
+		case "Physical-Buffer":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_Buffer
+		case "Empty":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_Empty
+		case "Kernel":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_Kernel
+		case "Physical-ROM":
+			pmc.PhysicalBlocks[i].SegmentType = MemoryType_PhysicalROM
+		default:
+			return nil, errors.New("Invalid memory type " + mr[i].MemoryType)
+		}
+		totalBytes += mr[i].EndAddress - mr[i].StartAddress
+		totalPages += int(mr[i].EndAddress-mr[i].StartAddress) / PageSize
 	}
 	msg := "Initialized physical memory with " + strconv.Itoa(int(totalBytes)) +
 		" bytes and " + strconv.Itoa(totalPages) + " pages"
-	pmc.MyMap = mmap
 	RemoteLogging.LogEvent("INFO", "PhysicalMemoryInitialize", msg)
 	return pmc, nil
 }
@@ -82,8 +113,8 @@ func (pmc *PhysicalMemoryContainer) GetRegionByKey(key uint16) *PhysicalBlock {
 	RemoteLogging.LogEvent("INFO", "PhysicalMemoryGetBlock", "Getting block for key "+
 		strconv.Itoa(int(key)))
 	// Walk the map looking for a key
-	for i := range pmc.MyMap {
-		if pmc.MyMap[i].Key == key {
+	for i := range pmc.SystemDesc.Memory {
+		if pmc.SystemDesc.Memory[i].Key == int(key) {
 			// Return it
 			return &pmc.PhysicalBlocks[i]
 		}
