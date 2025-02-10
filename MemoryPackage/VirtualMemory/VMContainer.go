@@ -2,7 +2,6 @@ package VirtualMemory
 
 import (
 	"GolangCPUParts/Configuration"
-	"GolangCPUParts/MemoryPackage/MemoryMap"
 	"GolangCPUParts/MemoryPackage/PhysicalMemory"
 	"GolangCPUParts/MemoryPackage/Swapper"
 	"GolangCPUParts/RemoteLogging"
@@ -21,10 +20,10 @@ const (
 )
 
 type VMContainer struct {
-	MemoryPages        []VMPage
-	MemoryMap          []MemoryMap.MemoryMapRegion
+	MemoryPages        map[uint32]VMPage
+	SystemDescriptor   Configuration.SystemConfigs
 	Swapper            *Swapper.SwapperContainer
-	PhysicalPMemory    *PhysicalMemory.PhysicalMemoryContainer
+	PhysicalPMemory    *PhysicalMemory.PhysicalMemoryManager
 	FreePhysicalMemory *list.List
 	UsedPhysicalMemory *list.List
 	FreeVirtualPages   *list.List
@@ -48,23 +47,35 @@ func (vmc *VMContainer) IsPageLocked(page uint32) bool {
 	return vmc.MemoryPages[page].Status&PageStatus_Locked != 0
 }
 
-func (vmc *VMContainer) PageIsActive(page uint32) {
-	vmc.MemoryPages[page].Status |= PageStatus_Active
+func (vmc *VMContainer) SetPageActive(page uint32) {
+	s := vmc.MemoryPages[page]
+	s.Status |= PageStatus_Active
+	vmc.MemoryPages[page] = s
 }
-func (vmc *VMContainer) PageIsOnDisk(page uint32) {
-	vmc.MemoryPages[page].Status |= PageStatus_OnDisk
+func (vmc *VMContainer) SetPageIsOnDisk(page uint32) {
+	s := vmc.MemoryPages[page]
+	s.Status |= PageStatus_OnDisk
+	vmc.MemoryPages[page] = s
 }
-func (vmc *VMContainer) PageIsLocked(page uint32) {
-	vmc.MemoryPages[page].Status |= PageStatus_Locked
+func (vmc *VMContainer) SetPageIsLocked(page uint32) {
+	s := vmc.MemoryPages[page]
+	s.Status |= PageStatus_Locked
+	vmc.MemoryPages[page] = s
 }
-func (vmc *VMContainer) PageIsNotOnDisk(page uint32) {
-	vmc.MemoryPages[page].Status &= ^PageStatus_OnDisk
+func (vmc *VMContainer) SetPageIsNotOnDisk(page uint32) {
+	s := vmc.MemoryPages[page]
+	s.Status &= ^PageStatus_OnDisk
+	vmc.MemoryPages[page] = s
 }
-func (vmc *VMContainer) PageIsNotActive(page uint32) {
-	vmc.MemoryPages[page].Status &= (^PageStatus_Active)
+func (vmc *VMContainer) SetPageIsNotActive(page uint32) {
+	s := vmc.MemoryPages[page]
+	s.Status &= (^PageStatus_Active)
+	vmc.MemoryPages[page] = s
 }
 func (vmc *VMContainer) PageIsNotLocked(page uint32) {
-	vmc.MemoryPages[page].Status &= ^PageStatus_Locked
+	s := vmc.MemoryPages[page]
+	s.Status &= ^PageStatus_Locked
+	vmc.MemoryPages[page] = s
 }
 func ListFindUint32(l *list.List, v uint32) *list.Element {
 	for l := l.Front(); l != nil; l = l.Next() {

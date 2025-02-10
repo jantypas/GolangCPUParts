@@ -170,16 +170,45 @@ func (pmc *PhysicalMemoryManager) GetNumberPages() uint32 {
 	return uint32(total)
 }
 
+func checkProtections(memType int, prot uint64) error {
+	switch memType {
+	case MemoryType_Empty:
+		return errors.New("Can't use an empty page")
+	case MemoryType_VirtualRAM:
+		return nil
+	case MemoryType_PhysicalRAM:
+		return nil
+	case MemoryType_BufferRAM:
+		return errors.New("Buffer pages not implemented yet")
+	case MemoryType_KernelRAM:
+		return nil
+	case MemoryType_IORAM:
+		return errors.New("I/O Pages not implemented yet")
+	case MemoryType_ROM:
+		return nil
+	default:
+		return errors.New("Unknown memory type")
+	}
+}
+
 func (pmc *PhysicalMemoryManager) ReadPage(p uint32) ([]byte, error) {
 	block, err := pmc.GetBlockByPage(p)
 	if err != nil {
 		return nil, err
+	}
+	err := checkProtections(block.MemoryType, block.Protection)
+	if err != nil {
+		return 0, err
 	}
 	return block.Buffer[p*PhysicalPageSize : (p+1)*PhysicalPageSize], nil
 }
 
 func (pmc *PhysicalMemoryManager) WritePage(p uint32, data []byte) error {
 	block, err := pmc.GetBlockByPage(p)
+	if err != nil {
+		return err
+	}
+	err = checkProtections(block.MemoryType, block.Protection)
 	if err != nil {
 		return err
 	}
@@ -192,11 +221,19 @@ func (pmc *PhysicalMemoryManager) ReadAddress(addr uint64) (uint8, error) {
 	if err != nil {
 		return 0, err
 	}
+	err = checkProtections(block.MemoryType, block.Protection)
+	if err != nil {
+		return 0, err
+	}
 	return block.Buffer[addr-block.StartAddress], nil
 }
 
 func (pmc *PhysicalMemoryManager) WriteAddress(addr uint64, data uint8) error {
 	block, err := pmc.GetBlockByAddress(addr)
+	if err != nil {
+		return err
+	}
+	err = checkProtections(block.MemoryType, block.Protection)
 	if err != nil {
 		return err
 	}
