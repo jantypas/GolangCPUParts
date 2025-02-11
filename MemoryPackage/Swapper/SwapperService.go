@@ -2,6 +2,7 @@ package Swapper
 
 import (
 	"GolangCPUParts/MemoryPackage/PhysicalMemory"
+	"GolangCPUParts/MemoryPackage/VirtualMemory"
 	"errors"
 	"os"
 )
@@ -29,7 +30,7 @@ func (sc *SwapperContainer) Terminate() {
 }
 
 func (sc *SwapperContainer) SwapOutPage(page uint32, buffer []byte) error {
-	_, err := sc.FileHandle.Seek(int64(page*PhysicalMemory.PageSize), 0)
+	_, err := sc.FileHandle.Seek(int64(page*PhysicalMemory.PhysicalPageSize), 0)
 	if err != nil {
 		return errors.New("Failed to seek to page")
 	}
@@ -41,7 +42,7 @@ func (sc *SwapperContainer) SwapOutPage(page uint32, buffer []byte) error {
 }
 
 func (sc *SwapperContainer) SwapInPage(page uint32, buffer []byte) error {
-	_, err := sc.FileHandle.Seek(int64(page*PhysicalMemory.PageSize), 0)
+	_, err := sc.FileHandle.Seek(int64(page*PhysicalMemory.PhysicalPageSize), 0)
 	if err != nil {
 		return errors.New("Failed to seek to page")
 	}
