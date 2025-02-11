@@ -386,6 +386,10 @@ func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
 	if page > MaxVirtualPages {
 		return nil, errors.New("Invalid page number")
 	}
+	_, ok := vmc.MemoryPages[page]
+	if !ok {
+		return nil, errors.New("Page not found")
+	}
 	if !vmc.IsPageActive(page) {
 		return nil, errors.New("Page is not active")
 	}
@@ -402,6 +406,10 @@ func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
 func (vmc *VMContainer) WritePage(page uint32, buf []byte) error {
 	if page > MaxVirtualPages {
 		return errors.New("Invalid page number")
+	}
+	_, ok := vmc.MemoryPages[page]
+	if !ok {
+		return errors.New("Page not found")
 	}
 	if !vmc.IsPageActive(page) {
 		return errors.New("Page is not active")
