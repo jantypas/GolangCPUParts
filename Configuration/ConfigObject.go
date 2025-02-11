@@ -55,7 +55,7 @@ var MemoryTypeNames = []string{
 	"Empty",
 	"Virtual-RAM",
 	"Physical-RAM",
-	"BUFFER-RAM",
+	"Buffer-RAM",
 	"Kernel-RAM",
 	"I/O-RAM",
 	"Physical-ROM",
@@ -303,6 +303,13 @@ func MockConfig() ([]byte, error) {
 							EndAddress:   0x0000_0000_05FF_FFFF,
 							MemoryType:   "I/O-RAM",
 							Parameters:   "",
+						},
+						{
+							Key:          3,
+							Comment:      "512KB Buffer RAM",
+							StartAddress: 0x0000_0000_0600_0000,
+							EndAddress:   0x0000_0000_0607_FFFF,
+							MemoryType:   "Buffer-RAM",
 						},
 					},
 					IO: []IODescriptor{
