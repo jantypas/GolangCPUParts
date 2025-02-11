@@ -135,7 +135,7 @@ func VirtualMemoryInitialize(
 	// Make our virtual memory container
 	vmc := VMContainer{}
 	// Try to start up physical memory
-	pmc, err := PhysicalMemory.PhysicalMemoryInitialize(cfg, name)
+	pmc, err := PhysicalMemory.PhysicalMemoryInitialize(&cfg, name)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func VirtualMemoryInitialize(
 	// Build the virtual paages into the lower 4GB (20-bits) of the map
 	for i := 0; i < numVPages; i++ {
 		vmc.MemoryPages[uint32(i)] =
-			VMPage{uint32(i), i, 0}
+			VMPage{uint32(i), uint32(i), 0}
 	}
 	// Finally start the swapper
 	vmc.Swapper, err =
@@ -316,7 +316,7 @@ func (vmc *VMContainer) SwapInPage(page uint32) error {
 	// Do we have a free physical page to put this into?
 	if vmc.FreePhysicalMemory.Len() == 0 {
 		// No, try swapping out some old pages
-		err := SwapOutOldPages()
+		err := vmc.SwapOutOldPages()
 		if err != nil {
 			RemoteLogging.LogEvent("ERROR", "SwapOutPage", "Failed to swap out old pages")
 			return err
@@ -395,6 +395,7 @@ func (vmc *VMContainer) ReadPage(page uint32) ([]byte, error) {
 			return nil, err
 		}
 	}
+	vmc.LRUCache.PushFront(page)
 	return vmc.GetBuffer(page), nil
 }
 
@@ -413,6 +414,7 @@ func (vmc *VMContainer) WritePage(page uint32, buf []byte) error {
 	}
 	blk := vmc.GetBuffer(page)
 	copy(blk, buf)
+	vmc.LRUCache.PushFront(page)
 	return nil
 }
 

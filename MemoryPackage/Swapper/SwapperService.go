@@ -2,7 +2,6 @@ package Swapper
 
 import (
 	"GolangCPUParts/MemoryPackage/PhysicalMemory"
-	"GolangCPUParts/MemoryPackage/VirtualMemory"
 	"errors"
 	"os"
 )
