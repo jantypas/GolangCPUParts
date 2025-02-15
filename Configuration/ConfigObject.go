@@ -74,9 +74,9 @@ func MockConfig() ([]byte, error) {
 				Name: "Old-IBM-Mainframe",
 				Description: ConfigurationDescriptor{
 					CPU: CPUDescriptor{
-						CPUType:    0x1000_0000_0000_0000,
-						FeatureA:   0x0000_0000_0000_0000,
-						FeatureB:   0x0000_0000_0000_0000,
+						CPUType:    1000_0000_0000_0000,
+						FeatureA:   0000_0000_0000_0000,
+						FeatureB:   0000_0000_0000_0000,
 						Parameters: "",
 					},
 					Memory: []MemoryDescriptor{
@@ -203,17 +203,17 @@ func MockConfig() ([]byte, error) {
 				Name: "Kaypro-CPM-64KB",
 				Description: ConfigurationDescriptor{
 					CPU: CPUDescriptor{
-						CPUType:    0x1000_0000_0000_0000,
-						FeatureA:   0x0000_0000_0000_0000,
-						FeatureB:   0x0000_0000_0000_0000,
+						CPUType:    1000_0000_0000_0000,
+						FeatureA:   0000_0000_0000_0000,
+						FeatureB:   0000_0000_0000_0000,
 						Parameters: "",
 					},
 					Memory: []MemoryDescriptor{
 						MemoryDescriptor{
 							Key:          0,
-							Comment:      "64KB of RAM",
+							Comment:      "64MB of RAM",
 							StartAddress: 0x0000_0000_0000_0000,
-							EndAddress:   0x0000_0000_0001_FFFF,
+							EndAddress:   0x0000_0000_0000_FFFF,
 							MemoryType:   "Physical-RAM",
 						},
 					},
