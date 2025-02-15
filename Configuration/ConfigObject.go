@@ -16,8 +16,8 @@ type CPUDescriptor struct {
 type MemoryDescriptor struct {
 	Key          int    `json:"key"`
 	Comment      string `json:"comment"`
-	StartAddress uint64 `json:"base"`
-	EndAddress   uint64 `json:"size"`
+	StartAddress uint64 `json:"start_address"`
+	EndAddress   uint64 `json:"end_address"`
 	MemoryType   string `json:"memory_type"`
 	Parameters   string `json:"parameters"`
 }
@@ -271,7 +271,7 @@ func MockConfig() ([]byte, error) {
 				},
 			},
 			{
-				Name: "Vax-11/780 64MB",
+				Name: "Vax-11/780r-64MB",
 				Description: ConfigurationDescriptor{
 					CPU: CPUDescriptor{
 						CPUType:    0x1000_0000_0000_0000,
