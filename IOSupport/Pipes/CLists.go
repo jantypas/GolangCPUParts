@@ -21,6 +21,15 @@ func NewCList() *CList {
 	}
 }
 
+func (c *CList) Dispose() {
+	c.Flush()
+	c.Buffer = nil
+}
+
+func (c *CList) Size() int {
+	return len(c.Buffer)
+}
+
 func (c *CList) IsEmpty() bool {
 	return c.ReadPtr == c.WritePtr
 }

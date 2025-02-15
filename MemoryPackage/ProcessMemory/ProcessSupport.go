@@ -1,6 +1,7 @@
 package ProcessMemory
 
 import (
+	"GolangCPUParts/IOSupport/Pipes"
 	"GolangCPUParts/MemoryPackage/VirtualMemory"
 	"math/rand"
 )
@@ -67,6 +68,9 @@ func ProcessTable_Initialize(vmp *VirtualMemory.VMContainer) *ProcessTable {
 	return &pt
 }
 
+type PipeTable struct {
+	Pipes 	[]Pipes.PipePair
+}
 // Terminate releases all resources associated with the process table and cleans up memory allocations.
 func (pt *ProcessTable) Terminate() {
 	for _, v := range pt.MemoryObjects {
