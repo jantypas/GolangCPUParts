@@ -312,12 +312,12 @@ func MockConfig() ([]byte, error) {
 				},
 			},
 			{
-				Name: "Vax-11/780r-64MB",
+				Name: "Vax-11/780-64MB",
 				Description: ConfigurationDescriptor{
 					CPU: CPUDescriptor{
-						CPUType:    0x1000_0000_0000_0000,
-						FeatureA:   0x0000_0000_0000_0000,
-						FeatureB:   0x0000_0000_0000_0000,
+						CPUType:    1000_0000_0000_0000,
+						FeatureA:   0000_0000_0000_0000,
+						FeatureB:   0000_0000_0000_0000,
 						Parameters: map[string]string{},
 					},
 					Memory: []MemoryDescriptor{
@@ -325,7 +325,7 @@ func MockConfig() ([]byte, error) {
 							Key:          0,
 							Comment:      "64MB of RAM",
 							StartAddress: 0x0000_0000_0000_0000,
-							EndAddress:   0x0000_0000_03FFF_FFFF,
+							EndAddress:   0x0000_0000_03FF_FFFF,
 							MemoryType:   "Virtual-RAM",
 							Parameters:   map[string]string{},
 						},
@@ -450,6 +450,24 @@ func MockConfig() ([]byte, error) {
 							Parameters: map[string]string{
 								"mode":  "hayes",
 								"speed": "57600",
+							},
+						},
+						{
+							Class:      "VAX",
+							Subclass:   "PTY",
+							Model:      "NA",
+							MountPoint: "/dev/pty/0",
+							Parameters: map[string]string{
+								"num": "64",
+							},
+						},
+						{
+							Class:      "VAX",
+							Subclass:   "TTY",
+							Model:      "NA",
+							MountPoint: "/dev/tty/0",
+							Parameters: map[string]string{
+								"num": "64",
 							},
 						},
 					},
