@@ -32,5 +32,5 @@ func TestConfigObject_Export(t *testing.T) {
 	if cfg == nil {
 		t.Error("Failed to get config")
 	}
-	fmt.Println(cfg)
+brbr	fmt.Println(cfg)
 }

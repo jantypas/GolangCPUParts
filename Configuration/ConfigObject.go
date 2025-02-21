@@ -37,7 +37,8 @@ type ConfigurationDescriptor struct {
 }
 
 type ConfigSettings struct {
-	SwapFileName string `json:"swap_file_name"`
+	SwapFileName   string
+	HostVolumePath string
 }
 
 type SystemConfigs struct {
@@ -67,7 +68,8 @@ func MockConfig() ([]byte, error) {
 	cfg := ConfigObject{
 		Version: 1,
 		Settings: ConfigSettings{
-			SwapFileName: "/tmp/swap.swp",
+			SwapFileName:   "/tmp/swap.swp",
+			HostVolumePath: "/tmp/host/volumes",
 		},
 		Configuration: []SystemConfigs{
 			SystemConfigs{
